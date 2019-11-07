@@ -9,9 +9,9 @@ import operator
 import stormpy
 import stormpy.utility
 
-import stats
+import cegis.stats
 from annotated_property import AnnotatedProperty
-from verifier import Verifier
+from cegis.verifier import Verifier
 
 from z3 import *
 
@@ -68,7 +68,7 @@ class Synthesiser:
         self.symmetries = None
         self.differents = None
         self.learned_clauses = []
-        self.stats = stats.SynthetiserStats()
+        self.stats = cegis.stats.SynthetiserStats()
         self.to_jani = to_jani
         self._label_renaming = None
         self.result = None
@@ -80,12 +80,14 @@ class Synthesiser:
         self._executor = conc.ThreadPoolExecutor(max_workers=self.tasks)
         self.properties = []
         self.qualitative_properties = []
+        self.stats_keyword = "cegis-stats"
+        self._all_conflicts = True
 
     @property
     def verifier_stats(self):
         return self._verifier.stats
 
-    def load_sketch(self, path, property_path, constants, as_jani=True):
+    def load_sketch(self, path, property_path, constants, as_jani=False):
         """
         Load sketch
 
@@ -293,15 +295,14 @@ class Synthesiser:
         self.symmetries = symmetries
         self.differents = differents
 
-    def initialize_synthesis(self):
+    def initialise(self):
         self._initialize_solver()
         self._initialise_verifier()
 
-    def run(self, all_conflicts):
+    def run(self):
         """
         Run the main loop of the synthesiser.
 
-        :param all_conflicts:
         :return:
         """
         synt_time = time.time()
@@ -343,7 +344,7 @@ class Synthesiser:
             logger.debug("Iteration: {} dispatching ..".format(self.stats.iterations))
 
             # Execute the verifier in another thread.
-            future = self._executor.submit(self._verifier.run, instance, all_conflicts)
+            future = self._executor.submit(self._verifier.run, instance, self._all_conflicts)
             future._cb = make_callback(hole_assignments, sat_model)
             futures.add(future)
             logger.debug("Currently running: {}".format(len(futures)))
@@ -365,7 +366,7 @@ class Synthesiser:
 
         self.stats.total_time = time.time() - synt_time
         conc.wait(futures)
-        return self.result
+        return True if self.result is not None else False, self.result
 
     def build_instance(self, assignments):
         """
@@ -566,3 +567,38 @@ class Synthesiser:
             self.stats.clause_adding_times.append(clause_add_time)
             self._smtlock.release()
             logger.debug("added clause!")
+
+    def print_stats(self):
+        print("Iterations: {} ({} s), Qualitative Iterations {}/{}".format(self.stats.iterations,
+                                                                           self.stats.total_time,
+                                                                           self.stats.qualitative_iterations,
+                                                                           self.stats.iterations))
+        print("Non-trivial counterexamples: {}".format(self.stats.non_trivial_cex))
+        print("Model Building Calls: {} ({} s)".format(self.verifier_stats.model_building_calls,
+                                                       self.verifier_stats.model_building_time))
+        print("Synthethiser Analysis: {} = {} + {} s".format(self.stats.total_solver_time,
+                                                             self.stats.total_solver_analysis_time,
+                                                             self.stats.total_solver_clause_adding_time))
+        print("Conflict analyses Calls: {} ({} s)".format(self.verifier_stats.conflict_analysis_calls,
+                                                          self.verifier_stats.conflict_analysis_time))
+        print("Qualitative Model Checking Calls: {} ({} s)".format(
+            self.verifier_stats.qualitative_model_checking_calls,
+            self.verifier_stats.qualitative_model_checking_time))
+        print("Quantitative Model Checking Calls: {} ({} s)".format(
+            self.verifier_stats.quantitative_model_checking_calls,
+            self.verifier_stats.quantitative_model_checking_time))
+
+        print("CA/Iterations: {}".format(self.verifier_stats.total_conflict_analysis_iterations))
+        print("CA/SMT solving: {} s".format(self.verifier_stats.total_conflict_analysis_solver_time))
+        print("CA/Analysis: {} s".format(self.verifier_stats.total_conflict_analysis_analysis_time))
+        print("CA/MC: {} s".format(self.verifier_stats.total_conflict_analysis_mc_time))
+        print("CA/Setup: {} s".format(self.verifier_stats.total_conflict_analysis_setup_time))
+        print("CA/Cuts: {} s".format(self.verifier_stats.total_conflict_analysis_cut_time))
+
+        # print("Learned clauses: {}".format(",".join([str(c) for c in self.stats.learned_clauses])))
+        # print(self.sketch)
+
+        self.verifier_stats.print_property_stats()
+
+    def store_in_statistics(self):
+        return [self.stats, self.verifier_stats]

@@ -26,14 +26,15 @@ class FamilyCheckMethod(Enum):
     SchedulerIteration = 1,
     DtmcIteration = 2,
     AllInOne = 3,
-    SMT = 4
+    SMT = 4,
+    CEGIS = 5
 
     @classmethod
     def from_string(cls, input):
         """
         Construct enum from string. 
         
-        :param input: either of [lift, cschedenum, onebyone, allinone, smt]
+        :param input: either of [lift, cschedenum, onebyone, allinone, smt, cegis]
         :return: the corresponding enum, or None
         """
         if input == "lift":
@@ -46,6 +47,8 @@ class FamilyCheckMethod(Enum):
             return cls.AllInOne
         elif input == "smt":
             return cls.SMT
+        elif input == "cegis":
+            return cls.CEGIS
         else:
             return None
 
@@ -97,6 +100,8 @@ class FamilyChecker:
         self.jani_quotient_builder = None
         self.thresholds = []
         self._engine = engine
+        # keyword that is written to stats files to help restore stats correctly.
+        self.stats_keyword = "genericfamilychecker-stats"
 
     def _load_properties_from_file(self, program, path, constant_str=""):
         """
@@ -256,6 +261,15 @@ class FamilyChecker:
         oracle.analyse(threshold, index)
         return oracle
 
+    def initialise(self):
+        pass
+
+    def print_stats(self):
+        pass
+
+    def store_in_statistics(self):
+        return []
+
 
 class LiftingChecker(FamilyChecker):
     """
@@ -299,7 +313,7 @@ class LiftingChecker(FamilyChecker):
                 self._analyse_suboptions(oracle, hole_options[0], threshold)
             # TODO select right threshold.
             threshold_synthesis_result = oracle.decided(threshold)
-            if threshold_synthesis_result == jani.oracle.ThresholdSynthesisResult.UNDECIDED:
+            if threshold_synthesis_result == jani.quotient_container.ThresholdSynthesisResult.UNDECIDED:
                 logger.debug("Undecided.")
 
                 if threshold_synthesis:
@@ -321,7 +335,7 @@ class LiftingChecker(FamilyChecker):
                     else:
                         hole_options = self._split_hole_options(hole_options[0], oracle) + hole_options[1:]
             else:
-                if threshold_synthesis_result == jani.oracle.ThresholdSynthesisResult.ABOVE:
+                if threshold_synthesis_result == jani.quotient_container.ThresholdSynthesisResult.ABOVE:
                     logger.debug("All above.")
                     if threshold_synthesis:
                         options_above.append(hole_options[0])
@@ -563,6 +577,3 @@ class SmtChecker(FamilyChecker):
                           self.mc_formulae[0].reward_name if self.mc_formulae[0].is_reward_operator else None,
                           phi_states, psi_states, self.properties[0].raw_formula.threshold,
                           self.properties[0].raw_formula.comparison_type)
-
-
-

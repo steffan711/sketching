@@ -1,3 +1,7 @@
+"""
+Plot stats from counterexample based synthesis.
+"""
+
 import pickle
 import os
 import os.path
@@ -28,13 +32,14 @@ def load_stats(path):
     logger.info("Load stats from {}".format(path))
     tp = pickle.load(open(path, "rb"))
     logger.debug("done!")
-    synthesiser_stats = tp[0]
-    verifier_stats = tp[1]
-    constants_str = tp[2]
-    if len(tp) > 3:
-        description = tp[3]
-    else:
-        description = ""
+    keyword = tp[0]
+    if keyword != "cegis-stats":
+        raise ValueError("Stats are not for cegis")
+    constants_str = tp[1]
+    description = tp[2]
+    synthesiser_stats = tp[3]
+    verifier_stats = tp[4]
+
     constants = dict()
     constants_pairs = constants_str.split(",")
     for cp in constants_pairs:

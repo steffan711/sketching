@@ -3,7 +3,7 @@ import stormpy.logic
 
 class AnnotatedProperty:
     """
-    (Very) simple property wrapper that caters for the need of prerequisite propertiesE
+    (Very) simple property wrapper that caters for the need of prerequisite properties
     In particular, if we check expected rewards, we implicitly have to assume that the 
     probability to reach the target set is one. 
     This implicit assumption can be made explicit with a prerequisite property. 

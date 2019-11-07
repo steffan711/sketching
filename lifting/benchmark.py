@@ -1,7 +1,7 @@
 """
 benchmark.py
 
-Execute several runs of the CEGIS Framework for benchmarking. 
+Execute several runs of the framework for benchmarking. 
 """
 
 import os
@@ -18,6 +18,10 @@ def _log_path(prefix, constants):
     cstr = constants.replace(",", "_")
     return os.path.join(prefix, "stats_" + cstr + ".log")
 
+
+def reset_handlers(handlers):
+    for h in handlers:
+        logging.getLogger().removeHandler(h)
 
 @click.command()
 @click.option('--project', help="root")
@@ -40,7 +44,7 @@ def benchmark(project, sketch, allowed, restrictions, optimality, properties, ch
         handlers = synt.setup_logger(_log_path(prefix, c))
         stats_path = _stats_path(prefix, c)
         synt.synthethise(project, sketch, allowed, restrictions, optimality, properties, check_prerequisites, add_cuts, threads, c, stats_path)
-        synt.reset_handlers(handlers)
+        reset_handlers(handlers)
 
 
 if __name__ == '__main__':

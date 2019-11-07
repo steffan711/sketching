@@ -4,7 +4,7 @@ import time
 import stormpy
 import stormpy.utility
 
-import stats
+import cegis.stats
 
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ class Verifier:
         self._dont_care_set = None
         self.properties = None
         self.qualitative_properties = None
-        self.stats = stats.Stats()
+        self.stats = cegis.stats.Stats()
         self.cex_options = stormpy.SMTCounterExampleGeneratorOptions()
         self._optimality = None
         self._opt_value = None

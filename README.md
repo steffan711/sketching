@@ -22,35 +22,29 @@ More information can be found in his PhD thesis.
 
 #### CEGIS
 ```
-python cegis/synt.py --project examples/virus/ --sketch virus.templ --constants CMAX=0,T=18.0 --allowed virus.allowed --restrictions virus.restrictions  --properties virus.properties
+python lifting/lifting.py --project examples/virus/ --sketch virus.templ --constants CMAX=0,T=18.0 --allowed virus.allowed --restrictions virus.restrictions  --properties virus.properties
 ```
 ```
-python cegis/synt.py--project examples/grid/ --sketch 4x4grid_sl.templ --constants CMAX=11,T_EXP=10.0,T_SLOW=10.0,T_FAST=0.9 --allowed 4x4grid_sl.allowed --restrictions 4x4grid_sl.restrictions  --properties single.properties 
+python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --constants CMAX=11,T_EXP=10.0,T_SLOW=10.0,T_FAST=0.9 --allowed 4x4grid_sl.allowed --restrictions 4x4grid_sl.restrictions  --properties single.properties 
 ```
 ```
-python cegis/synt.py--project examples/grid/ --sketch 4x4grid_sl.templ --constants CMAX=1,T_EXP=10.0,T_SLOW=10.0,T_FAST=0.9 --allowed 4x4grid_sl.allowed --restrictions 4x4grid_sl.restrictions  --properties reward.properties --check-prerequisites True
+python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --constants CMAX=1,T_EXP=10.0,T_SLOW=10.0,T_FAST=0.9 --allowed 4x4grid_sl.allowed --restrictions 4x4grid_sl.restrictions  --properties reward.properties --check-prerequisites True
 ```
 
 #### Lifting
 ```bash
-python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --property reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed lift
+python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --properties reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed lift
 ```
 
 #### Scheduler enumeration
 ```bash
-python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --property reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed cschedenum
+python lifting/lifting.py --project examples/grid/ --sketch 4x4grid_sl.templ --properties reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed cschedenum
 ```
 
 Notice: The CMAX generally reflects blowing up the state space. For the grid examples, it should however be choosen larger than the counters in the properties.
 One may omit the check prerequisites if the sketch already ensures that all rewards are less than infinity.
 
 
-### Navigation
-
-##### CEGIS
-- Entry point is synt.py
-- The synthesiser is located in synthesiser.py
-- The verifier is located in verifier.py
 
 ##### All other approaches
 
