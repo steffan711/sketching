@@ -4,7 +4,7 @@ Dynasty
 This project contains a prototypical implementation of synthesis in probabilistic program sketches.
 
 It contains algorithms based on:
-- Milan Ceska, Christian Hensel, Sebastian Junges, Joost-Pieter Katoen: Counterexample-Driven Synthesis for Probabilistic Program Sketches, ATVA 2019
+- Milan Ceska, Christian Hensel, Sebastian Junges, Joost-Pieter Katoen: Counterexample-Driven Synthesis for Probabilistic Program Sketches, FM 2019
 - Milan Ceska, Nils Jansen, Sebastian Junges, Joost-Pieter Katoen: Shepherding Hordes of Markov chains, TACAS 2019
 
 The code has been developed by Sebastian Junges.
