@@ -53,7 +53,7 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option("--stats", default="stats.out")
 @click.option('--check-prerequisites', default=False, help="should prerequisites be checked")
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis']))
-def lifting(project, sketch, allowed, properties, optimality, restrictions, constants, stats, check_prerequisites, method):
+def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, check_prerequisites, method):
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
@@ -116,4 +116,4 @@ def lifting(project, sketch, allowed, properties, optimality, restrictions, cons
 
 if __name__ == "__main__":
     setup_logger("dynasty.log")
-    lifting()
+    dynasty()
