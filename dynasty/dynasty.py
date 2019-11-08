@@ -5,8 +5,8 @@ import click
 import os
 import time
 
-from familychecker import LiftingChecker,AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker,FamilyCheckMethod
-from synthesiser import Synthesiser
+from family_checkers.familychecker import LiftingChecker,AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker,FamilyCheckMethod
+from family_checkers.cegis import Synthesiser
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     elif approach == FamilyCheckMethod.SMT:
         algorithm = SmtChecker()
     elif approach == FamilyCheckMethod.CEGIS:
-        algorithm = Synthesiser(to_jani=True, threads=1, check_prerequisites=check_prerequisites,
+        algorithm = Synthesiser(threads=1, check_prerequisites=check_prerequisites,
                               add_cuts=backward_cuts)
     else:
         assert None

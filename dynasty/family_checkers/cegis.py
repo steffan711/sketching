@@ -3,23 +3,17 @@ import time
 from collections import OrderedDict
 import concurrent.futures as conc
 import threading
-import functools
-import operator
 
 import stormpy
 import stormpy.utility
 
 import cegis.stats
-from annotated_property import AnnotatedProperty
+from family_checkers.familychecker import FamilyChecker
 from cegis.verifier import Verifier
 
 from z3 import *
 
 logger = logging.getLogger(__name__)
-
-
-def prod(iterable):
-    return functools.reduce(operator.mul, iterable, 1)
 
 
 class OptimalitySetting:
@@ -55,21 +49,15 @@ class OptimalitySetting:
         return vp
 
 
-class Synthesiser:
+class Synthesiser(FamilyChecker):
     """
     Class that constructs new candidates to be verified.
     """
-    def __init__(self, to_jani=False, check_prerequisites=False, threads=1, add_cuts=True):
-        self.sketch = None
-        self.holes = None
-        self.hole_options = OrderedDict()
-        self._check_prereq = check_prerequisites
+    def __init__(self, check_prerequisites=False, threads=1, add_cuts=True):
+        super().__init__(check_prerequisites)
         self.template_metavariables = OrderedDict()
-        self.symmetries = None
-        self.differents = None
         self.learned_clauses = []
         self.stats = cegis.stats.SynthetiserStats()
-        self.to_jani = to_jani
         self._label_renaming = None
         self.result = None
         self._add_cuts = add_cuts
@@ -78,63 +66,12 @@ class Synthesiser:
         self._optimality_setting = None
         self.tasks = threads
         self._executor = conc.ThreadPoolExecutor(max_workers=self.tasks)
-        self.properties = []
-        self.qualitative_properties = []
         self.stats_keyword = "cegis-stats"
         self._all_conflicts = True
 
     @property
     def verifier_stats(self):
         return self._verifier.stats
-
-    def load_sketch(self, path, property_path, constants, as_jani=False):
-        """
-        Load sketch
-
-        :param path: 
-        :param property_path:
-        :param constants:
-        :param as_jani: Is the sketch already in jani format?
-        :return: 
-        """
-        logger.info("Load sketch from {} (jani={}) with constants {}".format(path, as_jani, constants))
-        if as_jani:
-            self.original_sketch, _ = stormpy.parse_jani_model(path)
-        else:
-            self.original_sketch = stormpy.parse_prism_program(path)
-
-        self.load_properties_from_file(property_path, constants)
-        if self.to_jani:
-            self.sketch, self.properties = self.original_sketch.to_jani(self.properties)
-        else:
-            self.sketch = self.original_sketch
-
-        self._annotate_properties(constants)
-        self._set_constants(constants)
-        self._find_holes()
-
-    def _annotate_properties(self, constant_str):
-        constants_map = self._constants_map(constant_str)
-        self.properties =  [AnnotatedProperty(stormpy.Property("property-{}".format(str(i)),
-                                                   p.raw_formula.clone().substitute(constants_map)), self.sketch,
-                                  add_prerequisites=self._check_prereq) for i, p in enumerate(self.properties)]
-
-    def _load_property_for_sketch(self, p, constant_str, property_offset=0):
-        """
-        Load a property for the loaded sketch
-
-        :param p: The string representation of a property
-        :return: A List of Properties
-        """
-        logger.debug("Loading property {} for sketch.".format(p))
-        if type(self.original_sketch) == stormpy.storage.JaniModel:
-            props = stormpy.parse_properties_for_jani_model(p, self.original_sketch)
-        else:
-            props = stormpy.parse_properties_for_prism_program(p, self.original_sketch)
-
-
-
-        return props
 
     def load_optimality(self, path):
         logger.debug("Loading optimality info.")
@@ -162,138 +99,9 @@ class Synthesiser:
 
         self._optimality_setting = OptimalitySetting(optimality_criterion, direction, epsilon)
 
-    def load_properties_from_file(self, path, constant_str):
-        """
-        Loads a list with properties from a file. 
-
-        :param path: File path 
-        :param constant_str: Constants to substitute
-        :return: None. Properties are now loaded.
-        """
-        logger.debug("Load properties from file.")
-        properties = []
-        with open(path) as file:
-            for line in file:
-                line = line.rstrip()
-                if not line or line == "":
-                    continue
-                if line.startswith("//"):
-                    continue
-                properties.append(line)
-        self.load_properties(properties, constant_str)
-
-    def load_properties(self, properties, constant_str):
-        """
-        Load properties to be checked via model checking
-
-        :param properties:
-        :return:
-        """
-        logger.debug("Load properties..")
-
-        for p in properties:
-            logger.debug("Loading property {}".format(p))
-            for prop in self._load_property_for_sketch(p, constant_str, len(self.properties)):
-                assert prop.raw_formula.has_bound
-                # print(prop.raw_formula)
-
-                if True:  # prop.raw_formula.is_probability_operator and prop.raw_formula.threshold > 0 and prop.raw_formula.threshold < 1:
-                    self.properties.append(prop)
-                    #     prop_qualitative = stormpy.Property(prop.name + "_qualitative", prop.raw_formula.clone(), "Qualitative version of original property")
-                    #     if prop.raw_formula.comparison_type in [stormpy.logic.ComparisonType.GEQ, stormpy.logic.ComparisonType.GREATER]:
-                    #         qual_threshold = self.sketch.expression_manager.create_rational(stormpy.Rational(0))
-                    #         qual_comparison_type = stormpy.logic.ComparisonType.GREATER
-                    #     else:
-                    #         qual_threshold = self.sketch.expression_manager.create_rational(stormpy.Rational(1))
-                    #         qual_comparison_type = stormpy.logic.ComparisonType.LESS
-                    #     prop_qualitative.raw_formula.set_bound(qual_comparison_type, qual_threshold)
-                    #     #self.qualitative_properties.append(prop_qualitative)
-                    # elif prop.raw_formula.is_reward_operator and prop.raw_formula.threshold > 0:
-                    #     self.properties.append(prop)
-                    # else:
-                    #     self.qualitative_properties.append(prop)
-
-    def load_template_definitions(self, location):
-        """
-        Load template definitions containing the possible values for the holes
-
-        :param location:
-        :return:
-        """
-        definitions = OrderedDict()
-        with open(location) as file:
-            for line in file:
-                line = line.rstrip()
-                if not line or line == "":
-                    continue
-                if line.startswith("#"):
-                    continue
-
-                entries = line.strip().split(";")
-                definitions[entries[0]] = entries[1:]
-
-        constants_map = dict()
-        for k, v in definitions.items():
-            if k not in self.holes:
-                raise ValueError("Key {} not in template".format(k))
-            if len(v) == 1:
-
-                ep = stormpy.storage.ExpressionParser(self.sketch.expression_manager)
-                ep.set_identifier_mapping(dict())
-                expr = ep.parse(v[0])
-                constants_map[self.holes[k].expression_variable] = expr
-
-                del self.holes[k]
-            else:
-                self.hole_options[k] = v
-
-        # Eliminate holes with just a single option.
-        self.sketch = self.sketch.define_constants(constants_map).substitute_constants()
-
-        logger.debug("Template variables: {}".format(self.hole_options))
-        self.stats.design_space_size = prod([len(v) for v in self.hole_options.values()])
-        logger.info("Design space: {}".format(self.stats.design_space_size))
-
-    def load_restrictions(self, location):
-        logger.debug("Load restrictions")
-        mode = "none"
-        symmetries = list()
-        differents = list()
-        with open(location) as file:
-            for line in file:
-                line = line.rstrip()
-                if not line or line == "":
-                    continue
-                if line.startswith("#"):
-                    continue
-                if line.startswith("!symmetries"):
-                    mode = "symmetries"
-                    continue
-                if line.startswith("!different"):
-                    mode = "different"
-                    continue
-                if mode == "symmetries":
-                    entries = line.strip().split(";")
-                    for e in entries:
-                        symmetries.append(e.strip().split(","))
-                if mode == "different":
-                    entries = line.strip().split(";")
-                    for e in entries:
-                        if e == "":
-                            continue
-                        differents.append(e.strip().split(","))
-                else:
-                    raise RuntimeError("Restriction file does not set appropriate mode")
-        for symmetry in symmetries:
-            for hole_name in symmetry:
-                if hole_name not in self.holes:
-                    raise ValueError("Key {} not in template, but in list of symmetries".format(hole_name))
-        for different in differents:
-            for hole_name in different:
-                if hole_name not in self.holes:
-                    raise ValueError("Key {} not in template, but in list of differents".format(hole_name))
-        self.symmetries = symmetries
-        self.differents = differents
+    def _register_unconstrained_design_space(self, size):
+        self.stats.design_space_size = size
+        logger.info("Design space (without constraints): {}".format(self.stats.design_space_size))
 
     def initialise(self):
         self._initialize_solver()
@@ -378,10 +186,9 @@ class Synthesiser:
         logger.info(
             "Consider hole assignment: {}".format(",".join("{}={}".format(k, v) for k, v in assignments.items())))
         constants_map = dict()
-        ep = stormpy.storage.ExpressionParser(self.sketch.expression_manager)
+        ep = stormpy.storage.ExpressionParser(self.expression_manager)
         ep.set_identifier_mapping(dict())
-        for hole_name, expression_string in assignments.items():
-            expr = ep.parse(expression_string)
+        for hole_name, expr in assignments.items():
             constants_map[self.holes[hole_name].expression_variable] = expr
         logger.debug("construct instance")
         instance = self.sketch.define_constants(constants_map).substitute_constants()
@@ -461,38 +268,10 @@ class Synthesiser:
             logger.info("Found conflicts involving {}".format(conflicts))
             self._exclude_sat_model(sat_model_map, conflicts)
 
-
-
-    def _constants_map(self, constant_str):
-        logger.debug("Load constants '{}'".format(constant_str))
-        if constant_str.rstrip() == "":
-            return dict()
-        constants_map = dict()
-        kvs = constant_str.split(",")
-        ep = stormpy.storage.ExpressionParser(self.original_sketch.expression_manager)
-        ep.set_identifier_mapping(dict())
-
-        holes = dict()
-        for c in self.original_sketch.constants:
-            holes[c.name] = c
-
-        for kv in kvs:
-            key_value = kv.split("=")
-            if len(key_value) != 2:
-                raise ValueError("Expected Key-Value pair, got '{}'.".format(kv))
-
-            expr = ep.parse(key_value[1])
-            constants_map[holes[key_value[0]].expression_variable] = expr
-        return constants_map
-
-    def _set_constants(self, constant_str):
-        constants_map = self._constants_map(constant_str)
-        self.sketch = self.sketch.define_constants(constants_map)
-
     def _count_remaining_models(self):
         """
         How many more models are there?
-        Warning; This operation is expensive as it counts explicitly.
+        Warning; This operation is expensive as it counts explicitly. For future, consider model counting. 
 
         :return: 
         """
@@ -508,37 +287,6 @@ class Synthesiser:
                 print(i)
         print("Remaining models: {}".format(i))
         self.solver.pop()
-
-    def _find_holes(self):
-        """
-        Find holes in the sketch.
-
-        :return:
-        """
-        logger.debug("Search for holes in sketch...")
-        self.holes = OrderedDict()
-        for c in self.sketch.constants:
-            if not c.defined:
-                self.holes[c.name] = c
-
-        logger.debug("Holes found: {}".format(list(self.holes.keys())))
-
-        # Now, check which holes occur in guards.
-        self.holes_guards = dict()
-        for h in self.holes:
-            self.holes_guards[h] = self.sketch.expression_manager.create_boolean(True)
-        # This only works for JANI right now.
-        if self.is_jani():
-            for automaton in self.sketch.automata:
-                automaton_index = self.sketch.get_automaton_index(automaton.name)
-                for edge_index, e in enumerate(automaton.edges):
-                    for h, c in self.holes.items():
-                        #logger.warning("Code not finished.")
-                        pass
-                        # print(type(c))
-                        # print(e.guard.contains_variable({c.expression_variable}))
-        else:
-            logger.warning("Guards not supported with prism")
 
     def _sat_model_to_constants_assignment(self, sat_model):
         hole_assignments = OrderedDict()

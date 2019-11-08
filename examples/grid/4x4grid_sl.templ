@@ -32,7 +32,7 @@ module strategy
     [p] pick = 0 & mem = 1 & o = 1 -> (mem' = M11) & (pick' = P11);
     [p] pick = 0 & mem = 2 & o = 1 -> (mem' = M21) & (pick' = P21);
     
-    [] pick = 0 & o = 2 -> true;
+    [done] pick = 0 & o = 2 -> true;
     
     [north] pick = 1 -> (pick' = 0);
     [east] pick = 2 -> (pick' = 0);

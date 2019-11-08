@@ -21,3 +21,6 @@ class AnnotatedProperty:
             new_prop = stormpy.parse_properties_for_jani_model(str(operator), sketch)
             self.prerequisite_property = stormpy.Property(prop.name + "_prereq", new_prop[0].raw_formula, comment="Prerequisite")
 
+    @property
+    def raw_formula(self):
+        return self.property.raw_formula

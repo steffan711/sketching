@@ -52,7 +52,7 @@ def always_true(x,y):
 
 class ModelHandling:
     """
-    Takes an MDP, which may be restricted and then checked.
+    Takes an lifted MDP, which may be restricted and then checked.
     
     """
 

@@ -6,6 +6,8 @@ import logging
 import operator
 import math
 import time
+import functools
+import operator
 
 import stormpy
 import stormpy.core
@@ -14,8 +16,13 @@ import jani
 from jani.jani_quotient_builder import *
 from jani.quotient_container import ThresholdSynthesisResult, Engine
 from smt.model_adapter import *
+from annotated_property import AnnotatedProperty
 
 logger = logging.getLogger(__name__)
+
+
+def prod(iterable):
+    return functools.reduce(operator.mul, iterable, 1)
 
 
 class FamilyCheckMethod(Enum):
@@ -89,16 +96,16 @@ class RoundStats:
 
 
 class FamilyChecker:
-    def __init__(self, engine = Engine.Sparse):
+    def __init__(self, check_prerequisites=False, engine = Engine.Sparse):
+        self._check_prereq = check_prerequisites
         self.expression_manager = None
         self.holes = None
         self.hole_options = None
         self.sketch = None
+        self.symmetries = None
+        self.differents = None
         self.properties = None
-        self.mc_formulae = None
-        self.mc_formulae_alt = None
-        self.jani_quotient_builder = None
-        self.thresholds = []
+        self.qualitative_properties = None
         self._engine = engine
         # keyword that is written to stats files to help restore stats correctly.
         self.stats_keyword = "genericfamilychecker-stats"
@@ -144,35 +151,9 @@ class FamilyChecker:
                 if True:  # prop.raw_formula.is_probability_operator and prop.raw_formula.threshold > 0 and prop.raw_formula.threshold < 1:
                     self.properties.append(prop)
         _constants_map = self._constants_map(constant_str, program)
-        self.properties = [stormpy.Property("property-{}".format(i),
-                                            p.raw_formula.clone().substitute(_constants_map)) for i, p in
-                           enumerate(self.properties)]
-        self.mc_formulae = []
-        self.mc_formulae_alt = []
-        for p in self.properties:
-            formula = p.raw_formula.clone()
-            comparison_type = formula.comparison_type
-            self.thresholds.append(formula.threshold)
-            formula.remove_bound()
-            alt_formula = formula.clone()
-            if comparison_type in [stormpy.ComparisonType.LESS, stormpy.ComparisonType.LEQ]:
-                formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
-                alt_formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
-            else:
-                assert comparison_type in [stormpy.ComparisonType.GREATER, stormpy.ComparisonType.GEQ]
-                formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
-                alt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
-            self.mc_formulae.append(formula)
-            self.mc_formulae_alt.append(alt_formula)
 
-    def load_template_definitions(self, location):
-        """
-        Load template definitions containing the possible values for the holes
 
-        :param location:
-        :return:
-        """
-        self.hole_options = HoleOptions()
+    def _parse_template_defs(self, location):
         definitions = OrderedDict()
         with open(location) as file:
             for line in file:
@@ -184,6 +165,21 @@ class FamilyChecker:
 
                 entries = line.strip().split(";")
                 definitions[entries[0]] = entries[1:]
+        return definitions
+
+    def _register_unconstrained_design_space(self, size):
+        logger.info("Design space (without constraints): {}".format(size))
+
+
+    def load_template_definitions(self, location):
+        """
+        Load template definitions containing the possible values for the holes
+
+        :param location:
+        :return:
+        """
+        self.hole_options = HoleOptions()
+        definitions = self._parse_template_defs(location)
 
         constants_map = dict()
         ordered_holes = list(self.holes.keys())
@@ -204,6 +200,10 @@ class FamilyChecker:
         # Eliminate holes with just a single option.
         self.sketch = self.sketch.define_constants(constants_map).substitute_constants()
         assert self.hole_options.keys() == self.holes.keys()
+
+        logger.debug("Template variables: {}".format(self.hole_options))
+        self._register_unconstrained_design_space(prod([len(v) for v in self.hole_options.values()]))
+
 
     def _constants_map(self, constant_str, program):
         logger.debug("Load constants '{}'".format(constant_str))
@@ -227,20 +227,88 @@ class FamilyChecker:
             constants_map[holes[key_value[0]].expression_variable] = expr
         return constants_map
 
+    def _find_holes(self):
+        """
+        Find holes in the sketch.
+
+        :return:
+        """
+        logger.debug("Search for holes in sketch...")
+        self.holes = OrderedDict()
+        for c in self.sketch.constants:
+            if not c.defined:
+                self.holes[c.name] = c
+
+        logger.debug("Holes found: {}".format(list(self.holes.keys())))
+
+    def _annotate_properties(self, constant_str):
+        _constants_map = self._constants_map(constant_str, self.sketch)
+        self.properties = [AnnotatedProperty(stormpy.Property("property-{}".format(i),
+                                                              p.raw_formula.clone().substitute(_constants_map)),
+                                             self.sketch,
+                                             add_prerequisites=self._check_prereq
+                                             ) for i, p in
+                           enumerate(self.properties)]
+
+
     def _set_constants(self, constant_str):
         constants_map = self._constants_map(constant_str, self.sketch)
         self.sketch = self.sketch.define_constants(constants_map)
 
     def load_sketch(self, path, property_path, constant_str=""):
+        logger.info("Load sketch from {}  with constants {}".format(path, constant_str))
+
         prism_program = stormpy.parse_prism_program(path)
         self.expression_manager = prism_program.expression_manager
         self._load_properties_from_file(prism_program, property_path, constant_str)
         self.sketch, self.properties = prism_program.to_jani(self.properties)
         self._set_constants(constant_str)
-        self.holes = open_constants(self.sketch)
-        logger.info(self.holes_as_string())
+        self._find_holes()
+        self._annotate_properties(constant_str)
 
         assert self.expression_manager == self.sketch.expression_manager
+
+    def load_restrictions(self, location):
+        logger.debug("Load restrictions")
+        mode = "none"
+        symmetries = list()
+        differents = list()
+        with open(location) as file:
+            for line in file:
+                line = line.rstrip()
+                if not line or line == "":
+                    continue
+                if line.startswith("#"):
+                    continue
+                if line.startswith("!symmetries"):
+                    mode = "symmetries"
+                    continue
+                if line.startswith("!different"):
+                    mode = "different"
+                    continue
+                if mode == "symmetries":
+                    entries = line.strip().split(";")
+                    for e in entries:
+                        symmetries.append(e.strip().split(","))
+                if mode == "different":
+                    entries = line.strip().split(";")
+                    for e in entries:
+                        if e == "":
+                            continue
+                        differents.append(e.strip().split(","))
+                else:
+                    raise RuntimeError("Restriction file does not set appropriate mode")
+        for symmetry in symmetries:
+            for hole_name in symmetry:
+                if hole_name not in self.holes:
+                    raise ValueError("Key {} not in template, but in list of symmetries".format(hole_name))
+        for different in differents:
+            for hole_name in different:
+                if hole_name not in self.holes:
+                    raise ValueError("Key {} not in template, but in list of differents".format(hole_name))
+        self.symmetries = symmetries
+        self.differents = differents
+
 
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
@@ -270,8 +338,34 @@ class FamilyChecker:
     def store_in_statistics(self):
         return []
 
+class LiftingBasedFamilyChecker(FamilyChecker):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.mc_formulae = None
+        self.mc_formulae_alt = None
+        self.jani_quotient_builder = None
+        self.thresholds = []
 
-class LiftingChecker(FamilyChecker):
+    def initialise(self):
+        self.mc_formulae = []
+        self.mc_formulae_alt = []
+        for p in self.properties:
+            formula = p.raw_formula.clone()
+            comparison_type = formula.comparison_type
+            self.thresholds.append(formula.threshold)
+            formula.remove_bound()
+            alt_formula = formula.clone()
+            if comparison_type in [stormpy.ComparisonType.LESS, stormpy.ComparisonType.LEQ]:
+                formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
+                alt_formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
+            else:
+                assert comparison_type in [stormpy.ComparisonType.GREATER, stormpy.ComparisonType.GEQ]
+                formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
+                alt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
+            self.mc_formulae.append(formula)
+            self.mc_formulae_alt.append(alt_formula)
+
+class LiftingChecker(LiftingBasedFamilyChecker):
     """
     
     """
@@ -464,7 +558,7 @@ class LiftingChecker(FamilyChecker):
         return split_queue
 
 
-class AllInOneChecker(FamilyChecker):
+class AllInOneChecker(LiftingBasedFamilyChecker):
     """
     
     """
@@ -477,7 +571,13 @@ class AllInOneChecker(FamilyChecker):
         _ = self._analyse_from_scratch(self._open_constants, self.hole_options, self._open_constants.keys(), 0)
 
 
-class OneByOneChecker(FamilyChecker):
+class OneByOneChecker(LiftingBasedFamilyChecker):
+    """
+    
+    TODO: strictly, this class is not based on lifting (but the code depends on mc_formulae for historical reasons
+    """
+
+
     def run(self):
         jani_program = self.sketch
         iteration = 0
@@ -505,7 +605,7 @@ class OneByOneChecker(FamilyChecker):
             logger.info("Avg model size {} states, {} transition".format(model_states_cum, model_transitions_cum))
 
 
-class ConsistentSchedChecker(FamilyChecker):
+class ConsistentSchedChecker(LiftingBasedFamilyChecker):
     """
     Enumerate over all schedulers.
     
@@ -544,7 +644,7 @@ class ConsistentSchedChecker(FamilyChecker):
             logger.info("Average states so far {}.  Average transitions so far {}".format(total_states/iterations, total_transitions/iterations))
 
 
-class SmtChecker(FamilyChecker):
+class SmtChecker(LiftingBasedFamilyChecker):
     def run(self):
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         threshold_synthesis = True
