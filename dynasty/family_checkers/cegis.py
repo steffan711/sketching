@@ -15,40 +15,6 @@ from z3 import *
 
 logger = logging.getLogger(__name__)
 
-
-class OptimalitySetting:
-    def __init__(self, criterion, direction, epsilon):
-        self._criterion = criterion
-        assert direction in ["min","max"]
-        self._direction = direction
-        self._eps = epsilon
-
-    @property
-    def criterion(self):
-        return self._criterion
-
-    def is_improvement(self, mc_result, best_so_far):
-        if best_so_far is None:
-            return True
-        if self._direction == "min":
-            return mc_result < best_so_far
-        if self._direction == "max":
-            return mc_result > best_so_far
-
-    def get_violation_property(self, best_so_far, bound_translator):
-        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(),
-                         "Optimality criterion with adapted bound")
-        if self._direction == "min":
-            bound = best_so_far - best_so_far * self._eps
-            ct = stormpy.logic.ComparisonType.LESS
-        else:
-            bound = best_so_far + best_so_far * self._eps
-            ct = stormpy.logic.ComparisonType.GREATER
-        bound = bound_translator(bound)
-        vp.raw_formula.set_bound(ct, bound)
-        return vp
-
-
 class Synthesiser(FamilyChecker):
     """
     Class that constructs new candidates to be verified.
@@ -72,32 +38,6 @@ class Synthesiser(FamilyChecker):
     @property
     def verifier_stats(self):
         return self._verifier.stats
-
-    def load_optimality(self, path):
-        logger.debug("Loading optimality info.")
-        direction = None
-        epsilon = None
-        with open(path) as file:
-            for line in file:
-                if line.startswith("//"):
-                    continue
-                if line.rstrip() == "min":
-                    direction = "min"
-                elif line.rstrip() == "max":
-                    direction = "max"
-                elif line.startswith("relative"):
-                    epsilon = float(line.split()[1])
-                else:
-                    optimality_criterion = self._load_property_for_sketch(line)[0]
-        logger.debug("Done parsing optimality file.")
-        if not direction:
-            raise ValueError("direction not set")
-        if not epsilon:
-            raise ValueError("epsilon not set")
-        if not optimality_criterion:
-            raise ValueError("optimality criterion not set")
-
-        self._optimality_setting = OptimalitySetting(optimality_criterion, direction, epsilon)
 
     def _register_unconstrained_design_space(self, size):
         self.stats.design_space_size = size

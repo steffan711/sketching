@@ -59,6 +59,38 @@ class FamilyCheckMethod(Enum):
         else:
             return None
 
+class OptimalitySetting:
+    def __init__(self, criterion, direction, epsilon):
+        self._criterion = criterion
+        assert direction in ["min","max"]
+        self._direction = direction
+        self._eps = epsilon
+
+    @property
+    def criterion(self):
+        return self._criterion
+
+    def is_improvement(self, mc_result, best_so_far):
+        if best_so_far is None:
+            return True
+        if self._direction == "min":
+            return mc_result < best_so_far
+        if self._direction == "max":
+            return mc_result > best_so_far
+
+    def get_violation_property(self, best_so_far, bound_translator):
+        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(),
+                         "Optimality criterion with adapted bound")
+        if self._direction == "min":
+            bound = best_so_far - best_so_far * self._eps
+            ct = stormpy.logic.ComparisonType.LESS
+        else:
+            bound = best_so_far + best_so_far * self._eps
+            ct = stormpy.logic.ComparisonType.GREATER
+        bound = bound_translator(bound)
+        vp.raw_formula.set_bound(ct, bound)
+        return vp
+
 
 def open_constants(model):
     return OrderedDict([(c.name, c) for c in model.constants if not c.defined])
@@ -105,6 +137,7 @@ class FamilyChecker:
         self.symmetries = None
         self.differents = None
         self.properties = None
+
         self.qualitative_properties = None
         self._engine = engine
         # keyword that is written to stats files to help restore stats correctly.
@@ -309,25 +342,35 @@ class FamilyChecker:
         self.symmetries = symmetries
         self.differents = differents
 
+    def load_optimality(self, path):
+        logger.debug("Loading optimality info.")
+        direction = None
+        epsilon = None
+        with open(path) as file:
+            for line in file:
+                if line.startswith("//"):
+                    continue
+                if line.rstrip() == "min":
+                    direction = "min"
+                elif line.rstrip() == "max":
+                    direction = "max"
+                elif line.startswith("relative"):
+                    epsilon = float(line.split()[1])
+                else:
+                    optimality_criterion = self._load_property_for_sketch(line)[0]
+        logger.debug("Done parsing optimality file.")
+        if not direction:
+            raise ValueError("direction not set")
+        if not epsilon:
+            raise ValueError("epsilon not set")
+        if not optimality_criterion:
+            raise ValueError("optimality criterion not set")
+
+        self._optimality_setting = OptimalitySetting(optimality_criterion, direction, epsilon)
+
 
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
-
-    def _analyse_from_scratch(self, _open_constants, holes_options, all_in_one_constants, threshold):
-        remember = set()#set(_open_constants)#set()
-        jani_abstraction_result = self.jani_quotient_builder.construct(holes_options, remember, all_in_one_constants)
-        index = 0 #TODO allow setting another index.
-        logger.info("Run analysis of property with index {}".format(index))
-        jani_abstraction_result.prepare(self.mc_formulae, self.mc_formulae_alt, self._engine)
-        jani_abstraction_result.analyse(threshold, index, self._engine)
-        return jani_abstraction_result
-
-    def _analyse_suboptions(self, oracle, suboptions, threshold):
-        indexed_suboptions = self.hole_options.index_map(suboptions)
-        oracle.consider_subset(suboptions, indexed_suboptions)
-        index = 0
-        oracle.analyse(threshold, index)
-        return oracle
 
     def initialise(self):
         pass
@@ -364,6 +407,22 @@ class LiftingBasedFamilyChecker(FamilyChecker):
                 alt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
             self.mc_formulae.append(formula)
             self.mc_formulae_alt.append(alt_formula)
+
+    def _analyse_from_scratch(self, _open_constants, holes_options, all_in_one_constants, threshold):
+        remember = set()#set(_open_constants)#set()
+        jani_abstraction_result = self.jani_quotient_builder.construct(holes_options, remember, all_in_one_constants)
+        index = 0 #TODO allow setting another index.
+        logger.info("Run analysis of property with index {}".format(index))
+        jani_abstraction_result.prepare(self.mc_formulae, self.mc_formulae_alt, self._engine)
+        jani_abstraction_result.analyse(threshold, index, self._engine)
+        return jani_abstraction_result
+
+    def _analyse_suboptions(self, oracle, suboptions, threshold):
+        indexed_suboptions = self.hole_options.index_map(suboptions)
+        oracle.consider_subset(suboptions, indexed_suboptions)
+        index = 0
+        oracle.analyse(threshold, index)
+        return oracle
 
 class LiftingChecker(LiftingBasedFamilyChecker):
     """
