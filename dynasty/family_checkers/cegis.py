@@ -7,9 +7,9 @@ import threading
 import stormpy
 import stormpy.utility
 
-import cegis.stats
-from family_checkers.familychecker import FamilyChecker
-from cegis.verifier import Verifier
+from dynasty.cegis.stats import SynthetiserStats as SynthetiserStates
+from dynasty.family_checkers.familychecker import FamilyChecker
+from dynasty.cegis.verifier import Verifier
 
 from z3 import *
 
@@ -23,7 +23,7 @@ class Synthesiser(FamilyChecker):
         super().__init__(check_prerequisites)
         self.template_metavariables = OrderedDict()
         self.learned_clauses = []
-        self.stats = cegis.stats.SynthetiserStats()
+        self.stats = SynthetiserStates()
         self._label_renaming = None
         self.result = None
         self._add_cuts = add_cuts

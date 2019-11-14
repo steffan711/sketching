@@ -1,5 +1,5 @@
 
-from model_handling.mdp_handling import *
+from dynasty.model_handling.mdp_handling import *
 import logging
 import math
 import time

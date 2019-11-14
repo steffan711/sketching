@@ -8,8 +8,8 @@ import itertools
 import logging
 import enum
 
-from jani.edge_coloring import EdgeColoring
-from jani.quotient_container import *
+from dynasty.jani.edge_coloring import EdgeColoring
+from dynasty.jani.quotient_container import *
 
 
 logger = logging.getLogger(__name__)

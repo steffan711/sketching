@@ -5,8 +5,9 @@ import click
 import os
 import time
 
-from family_checkers.familychecker import LiftingChecker,AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker,FamilyCheckMethod
-from family_checkers.cegis import Synthesiser
+from dynasty.family_checkers.familychecker import FamilyCheckMethod
+from dynasty.family_checkers.quotientbased import LiftingChecker, AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker
+from dynasty.family_checkers.cegis import Synthesiser
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,9 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
                              backward_cuts, "sat" if result is not None else "unsat"]])
     dump_stats_to_file(stats, algorithm.stats_keyword, constants, description, algorithm.store_in_statistics())
 
-if __name__ == "__main__":
+def main():
     setup_logger("dynasty.log")
     dynasty()
+
+if __name__ == "__main__":
+    main()
