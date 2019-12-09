@@ -277,7 +277,6 @@ class LiftingChecker(QuotientBasedFamilyChecker):
                 oracle = self._analyse_from_scratch(self._open_constants, hole_options[0], set(), threshold)
             else:
                 self._analyse_suboptions(oracle, hole_options[0], threshold)
-            # TODO select right threshold.
             threshold_synthesis_result = oracle.decided(threshold)
             if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.UNDECIDED:
                 logger.debug("Undecided.")
@@ -435,7 +434,7 @@ class OneByOneChecker(QuotientBasedFamilyChecker):
             logger.info("Ran for {}, expect total: {}".format(time.time() - iter_start, (
                 time.time() - iter_start) * total_nr_options / iteration))
             logger.info("Avg model size {} states, {} transition".format(model_states_cum, model_transitions_cum))
-
+            #TODO something with result
 
 class ConsistentSchedChecker(QuotientBasedFamilyChecker):
     """
@@ -443,11 +442,25 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
 
     Supports (only) threshold synthesis as of now. 
     """
+    def run_partitioning(self):
+        return self._run(False,False)
 
     def run_feasibility(self):
+        if self.input_has_multiple_properties():
+            raise NotImplementedError("Support for multiple properties is not implemented (but straightforward)")
+        if self.input_has_optimality_property():
+            raise NotImplementedError("Support for optimality is not implemented, but straightforward")
+            #self._run(False,True)
+        return self._run()
+
+    def _run(self, allow_termination_with_feasible_solution=True, keep_optimal=False):
+        if keep_optimal:
+            raise NotImplementedError("Keep optimal not yet implemented")
         prep_start = time.time()
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         self._open_constants = self.holes
+        threshold = float(self.thresholds[0])
+        logger.debug("Threshold is {}".format(threshold))
 
         iterations = 0
 
@@ -469,13 +482,22 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
             iterations += 1
             logger.info("Start with iteration {}.".format(iterations))
             self._analyse_suboptions(oracle, selected_hole_option, 0)
-            # TODO The result should be stored somehow.
-            logger.info("Ran for {}, expect total: {}".format(prep_time + time.time() - iter_start, prep_time + (
+            if allow_termination_with_feasible_solution:
+                # Plain feasibility checking.
+                threshold_synthesis_result = oracle.decided(threshold)
+                if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.ABOVE and self._accept_if_above:
+                    return True, selected_hole_option.pick_one_in_family()
+                if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.BELOW and not self._accept_if_above:
+                    return True, selected_hole_option.pick_one_in_family()
+
+            # TODO For partitioning, the result should be stored somehow.
+            logger.info("Ran for {}, expect total up to: {}".format(prep_time + time.time() - iter_start, prep_time + (
                 time.time() - iter_start) * total_nr_options / iterations))
             total_states += oracle._mdp_handling.mdp.nr_states
             total_transitions += oracle._mdp_handling.mdp.nr_transitions
-            logger.info("Average states so far {}.  Average transitions so far {}".format(total_states / iterations,
-                                                                                          total_transitions / iterations))
+            logger.info("Average states so far {}.  Average transitions so far {}".format(total_states / iterations,total_transitions / iterations))
+
+        return False, None
 
 
 class SmtChecker(QuotientBasedFamilyChecker):

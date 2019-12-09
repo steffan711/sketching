@@ -376,6 +376,9 @@ class FamilyChecker:
             return len(self.properties) > 0
         return len(self.properties) > 1
 
+    def input_has_optimality_property(self):
+        return self._optimality_setting is not None
+
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
 
