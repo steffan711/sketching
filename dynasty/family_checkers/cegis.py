@@ -47,7 +47,7 @@ class Synthesiser(FamilyChecker):
         self._initialize_solver()
         self._initialise_verifier()
 
-    def run(self):
+    def run_feasibility(self):
         """
         Run the main loop of the synthesiser.
 

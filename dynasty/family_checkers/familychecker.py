@@ -113,6 +113,12 @@ class HoleOptions(OrderedDict):
                         result[k].append(index)
         return result
 
+    def pick_one_in_family(self):
+        result = dict()
+        for k, v in self.items():
+            result[k] = v[0]
+        return result
+
 
 class RoundStats:
     def __init__(self, round, queued, above, below, time):
@@ -365,6 +371,10 @@ class FamilyChecker:
 
         self._optimality_setting = OptimalitySetting(optimality_criterion, direction, epsilon)
 
+    def input_has_multiple_properties(self):
+        if self._optimality_setting is not None:
+            return len(self.properties) > 0
+        return len(self.properties) > 1
 
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
@@ -374,6 +384,12 @@ class FamilyChecker:
 
     def print_stats(self):
         pass
+
+    def run_feasibility(self):
+        raise RuntimeError("This method should be overridden")
+
+    def run_partitioning(self):
+        raise RuntimeError("This method should be overridden")
 
     def store_in_statistics(self):
         return []

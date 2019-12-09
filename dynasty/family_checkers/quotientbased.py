@@ -19,6 +19,7 @@ class QuotientBasedFamilyChecker(FamilyChecker):
         self.mc_formulae_alt = None
         self.jani_quotient_builder = None
         self.thresholds = []
+        self._accept_if_above = []
 
     def initialise(self):
         self.mc_formulae = []
@@ -32,12 +33,15 @@ class QuotientBasedFamilyChecker(FamilyChecker):
             if comparison_type in [stormpy.ComparisonType.LESS, stormpy.ComparisonType.LEQ]:
                 formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
                 alt_formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
+                accept_if_above = False
             else:
                 assert comparison_type in [stormpy.ComparisonType.GREATER, stormpy.ComparisonType.GEQ]
                 formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
                 alt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
+                accept_if_above = True
             self.mc_formulae.append(formula)
             self.mc_formulae_alt.append(alt_formula)
+            self._accept_if_above.append(accept_if_above)
 
     def _analyse_from_scratch(self, _open_constants, holes_options, all_in_one_constants, threshold):
         remember = set()  # set(_open_constants)#set()
@@ -56,18 +60,95 @@ class QuotientBasedFamilyChecker(FamilyChecker):
         return oracle
 
 
+
+
+
 class LiftingChecker(QuotientBasedFamilyChecker):
     """
 
     """
 
-    def run(self):
-        """
+    def run_feasibility(self):
+        if self.input_has_multiple_properties():
+            raise RuntimeError("Lifting is only implemented for single properties")
 
-        :return: 
-        """
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         threshold_synthesis = True
+
+        self._open_constants = self.holes
+
+        oracle = None
+        iterations = 0
+
+        hole_options = [self.hole_options]
+        total_nr_options = self.hole_options.size()
+        nr_options_remaining = total_nr_options
+        logger.info("Total number of options: {}".format(total_nr_options))
+        hole_options_next_round = []
+        threshold = float(self.thresholds[0])
+        logger.debug("Threshold is {}".format(threshold))
+        self.use_oracle = True
+        while True:
+            iterations += 1
+            logger.info("Start with iteration {} (queue length: {} + {}).".format(iterations, len(hole_options),
+                                                                                  len(hole_options_next_round)))
+            if oracle is None:
+                oracle = self._analyse_from_scratch(self._open_constants, hole_options[0], set(), threshold)
+            else:
+                self._analyse_suboptions(oracle, hole_options[0], threshold)
+            # TODO select right threshold.
+            threshold_synthesis_result = oracle.decided(threshold)
+            print(type(hole_options[0]))
+            if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.UNDECIDED:
+                logger.debug("Undecided.")
+                oracle.scheduler_color_analysis()
+                hole_options = self._split_hole_options(hole_options[0], oracle) + hole_options[1:]
+            else:
+                if threshold_synthesis_result == ThresholdSynthesisResult.ABOVE:
+                    logger.debug("All above.")
+                    if self._accept_if_above[0]:
+                        return True, hole_options[0].pick_one_in_family()
+                    else:
+                        nr_options_remaining -= hole_options[0].size()
+                        hole_options = hole_options[1:]
+                else:
+                    logger.debug("All below.")
+                    if not self._accept_if_above[0]:
+                        return True, hole_options[0].pick_one_in_family()
+                    else:
+                        nr_options_remaining -= hole_options[0].size()
+                        hole_options = hole_options[1:]
+
+
+            logger.info("Number options remaining: {}".format(nr_options_remaining))
+            logger.info("Singleton regions {}".format(oracle.dtmcs_checked))
+            logger.info("Critical timings so far: {} building, {} checking {} analysis.".format(oracle._build_time,
+                                                                                                oracle._mc_time,
+                                                                                                oracle._sched_ana_time))
+
+            if len(hole_options) == 0:
+                if len(hole_options_next_round) == 0:
+                    break
+                logger.info("Next round...")
+                if len(hole_options_next_round) * 8 > remaining:
+                    self.use_oracle = False
+                hole_options = hole_options_next_round
+                hole_options_next_round = []
+
+        return False, None
+
+                # print("[" + ",".join([str(x) for x in hole_options]) + "]")
+
+    def _run_optimal_feasibility(self):
+        """
+        TODO debug again after recent refactoring. 
+        :return:
+        """
+
+        if self.input_has_multiple_properties():
+            raise RuntimeError("Lifting is only implemented for single properties")
+
+        self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
 
         self._open_constants = self.holes
 
@@ -82,7 +163,7 @@ class LiftingChecker(QuotientBasedFamilyChecker):
         total_nr_options = self.hole_options.size()
         logger.info("Total number of options: {}".format(total_nr_options))
         hole_options_next_round = []
-        threshold = float(self.thresholds[0]) if threshold_synthesis else math.inf
+        threshold = math.inf
         logger.debug("Threshold is {}".format(threshold))
         optimal_hole_options = None
         self.use_oracle = True
@@ -101,56 +182,41 @@ class LiftingChecker(QuotientBasedFamilyChecker):
             if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.UNDECIDED:
                 logger.debug("Undecided.")
 
-                if threshold_synthesis:
-                    if hole_options[0].size() > 2:
-                        oracle.scheduler_color_analysis()
-                        hole_options_next_round += self._split_hole_options(hole_options[0], oracle)
-                    else:
-                        hole_options_next_round += self._split_hole_options(hole_options[0], None)
+
+                oracle.scheduler_color_analysis()
+                if oracle.is_lower_bound_tight():
+                    logger.debug("Found a tight lower bound.")
+                    threshold = oracle.lower_bound()
+                    logger.info("current threshold {}".format(threshold))
+                    nr_options_above += 1 if optimal_hole_options is not None else 0
+                    optimal_hole_options = hole_options[0]
+                    nr_options_above += hole_options[0].size() - 1
+                    hole_options = hole_options[1:]
                 else:
+                    hole_options = self._split_hole_options(hole_options[0], oracle) + hole_options[1:]
+            else:
+                if threshold_synthesis_result == ThresholdSynthesisResult.ABOVE:
+                    logger.debug("All above.")
+                    options_above.append(hole_options[0])
+                    nr_options_above += hole_options[0].size()
+                    hole_options = hole_options[1:]
+
+                else:
+                    logger.debug("All below.")
                     oracle.scheduler_color_analysis()
                     if oracle.is_lower_bound_tight():
                         logger.debug("Found a tight lower bound.")
                         threshold = oracle.lower_bound()
-                        logger.info("current threshold {}".format(threshold))
                         nr_options_above += 1 if optimal_hole_options is not None else 0
-                        optimal_hole_options = hole_options[0]
                         nr_options_above += hole_options[0].size() - 1
+                        optimal_hole_options = hole_options[0]
                         hole_options = hole_options[1:]
                     else:
+                        nr_options_above += 1 if optimal_hole_options is not None else 0
+                        threshold = oracle.upper_bound()
+                        optimal_hole_options = None
                         hole_options = self._split_hole_options(hole_options[0], oracle) + hole_options[1:]
-            else:
-                if threshold_synthesis_result == ThresholdSynthesisResult.ABOVE:
-                    logger.debug("All above.")
-                    if threshold_synthesis:
-                        options_above.append(hole_options[0])
-                        nr_options_above += hole_options[0].size()
-                    else:
-                        options_above.append(hole_options[0])
-                        nr_options_above += hole_options[0].size()
-                        hole_options = hole_options[1:]
-
-                else:
-                    logger.debug("All below.")
-
-                    if threshold_synthesis:
-                        options_below.append(hole_options[0])
-                        nr_options_below += hole_options[0].size()
-                    else:
-                        oracle.scheduler_color_analysis()
-                        if oracle.is_lower_bound_tight():
-                            logger.debug("Found a tight lower bound.")
-                            threshold = oracle.lower_bound()
-                            nr_options_above += 1 if optimal_hole_options is not None else 0
-                            nr_options_above += hole_options[0].size() - 1
-                            optimal_hole_options = hole_options[0]
-                            hole_options = hole_options[1:]
-                        else:
-                            nr_options_above += 1 if optimal_hole_options is not None else 0
-                            threshold = oracle.upper_bound()
-                            optimal_hole_options = None
-                            hole_options = self._split_hole_options(hole_options[0], oracle) + hole_options[1:]
-                        logger.info("current threshold {}".format(threshold))
+                    logger.info("current threshold {}".format(threshold))
 
             remaining = total_nr_options - nr_options_above - nr_options_below
             logger.info("Number options above {} (in {} regions) and below {} (in {} regions). Remaining: {}".format(
@@ -159,8 +225,6 @@ class LiftingChecker(QuotientBasedFamilyChecker):
             logger.info("Critical timings so far: {} building, {} checking {} analysis.".format(oracle._build_time,
                                                                                                 oracle._mc_time,
                                                                                                 oracle._sched_ana_time))
-            if threshold_synthesis:
-                hole_options = hole_options[1:]
             if len(hole_options) == 0:
                 if len(hole_options_next_round) == 0:
                     break
@@ -170,13 +234,91 @@ class LiftingChecker(QuotientBasedFamilyChecker):
                 hole_options = hole_options_next_round
                 hole_options_next_round = []
 
-            if threshold_synthesis:
-                # DO SOMETHING WITH RESULT
-                pass
-            else:
-                logger.info("Optimal value at {} with {}".format(threshold, optimal_hole_options))
+
+            logger.info("Optimal value at {} with {}".format(threshold, optimal_hole_options))
 
                 # print("[" + ",".join([str(x) for x in hole_options]) + "]")
+
+    def run_partitioning(self):
+        """
+
+        :return: 
+        """
+
+        if self.input_has_multiple_properties():
+            raise RuntimeError("Lifting is only implemented for single properties")
+
+        self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
+
+        self._open_constants = self.holes
+
+        options_above = []
+        nr_options_above = 0
+        options_below = []
+        nr_options_below = 0
+        oracle = None
+        iterations = 0
+
+        hole_options = [self.hole_options]
+        total_nr_options = self.hole_options.size()
+        logger.info("Total number of options: {}".format(total_nr_options))
+        hole_options_next_round = []
+        threshold = float(self.thresholds[0])
+        logger.debug("Threshold is {}".format(threshold))
+        optimal_hole_options = None
+        self.use_oracle = True
+        while True:
+            iterations += 1
+            logger.info("Start with iteration {} (queue length: {} + {}).".format(iterations, len(hole_options),
+                                                                                  len(hole_options_next_round)))
+            # logger.debug("In queue: {} (elements: {})".format(len(hole_options) + len(hole_options_next_round), sum([o.size() for o in hole_options + hole_options_next_round])))
+            # ssert sum([o.size() for o in hole_options + hole_options_next_round]) + nr_options_above + nr_options_below + (1 if optimal_hole_options is not None else 0) == total_nr_options, "{} + {} + {} vs {}".format(sum([o.size() for o in hole_options + hole_options_next_round]), nr_options_above, 1 if optimal_hole_options is not None else 0, total_nr_options)
+            if oracle is None:
+                oracle = self._analyse_from_scratch(self._open_constants, hole_options[0], set(), threshold)
+            else:
+                self._analyse_suboptions(oracle, hole_options[0], threshold)
+            # TODO select right threshold.
+            threshold_synthesis_result = oracle.decided(threshold)
+            if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.UNDECIDED:
+                logger.debug("Undecided.")
+
+                if hole_options[0].size() > 2:
+                    oracle.scheduler_color_analysis()
+                    hole_options_next_round += self._split_hole_options(hole_options[0], oracle)
+                else:
+                    hole_options_next_round += self._split_hole_options(hole_options[0], None)
+
+            else:
+                if threshold_synthesis_result == ThresholdSynthesisResult.ABOVE:
+                    logger.debug("All above.")
+                    options_above.append(hole_options[0])
+                    nr_options_above += hole_options[0].size()
+
+                else:
+                    logger.debug("All below.")
+
+                    options_below.append(hole_options[0])
+                    nr_options_below += hole_options[0].size()
+
+
+            remaining = total_nr_options - nr_options_above - nr_options_below
+            logger.info("Number options above {} (in {} regions) and below {} (in {} regions). Remaining: {}".format(
+                nr_options_above, len(options_above), nr_options_below, len(options_below), remaining))
+            logger.info("Singleton regions {}".format(oracle.dtmcs_checked))
+            logger.info("Critical timings so far: {} building, {} checking {} analysis.".format(oracle._build_time,
+                                                                                                oracle._mc_time,
+                                                                                                oracle._sched_ana_time))
+            hole_options = hole_options[1:]
+            if len(hole_options) == 0:
+                if len(hole_options_next_round) == 0:
+                    break
+                logger.info("Next round...")
+                if len(hole_options_next_round) * 8 > remaining:
+                    self.use_oracle = False
+                hole_options = hole_options_next_round
+                hole_options_next_round = []
+
+
 
     def _split_hole_options(self, hole_options, oracle):
 
@@ -254,7 +396,7 @@ class AllInOneChecker(QuotientBasedFamilyChecker):
 
     """
 
-    def run(self):
+    def run_feasibility(self):
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         self._open_constants = self.holes
         logger.info("Total number of options: {}".format(self.hole_options.size()))
@@ -268,7 +410,7 @@ class OneByOneChecker(QuotientBasedFamilyChecker):
     TODO: strictly, this class is not based on lifting (but the code depends on mc_formulae for historical reasons
     """
 
-    def run(self):
+    def run_feasibility(self):
         jani_program = self.sketch
         iteration = 0
         iter_start = time.time()
@@ -302,7 +444,7 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
     Supports (only) threshold synthesis as of now. 
     """
 
-    def run(self):
+    def run_feasibility(self):
         prep_start = time.time()
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         self._open_constants = self.holes
@@ -337,7 +479,7 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
 
 
 class SmtChecker(QuotientBasedFamilyChecker):
-    def run(self):
+    def run_feasibility(self):
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         threshold_synthesis = True
 

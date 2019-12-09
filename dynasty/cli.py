@@ -92,13 +92,14 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     algorithm.initialise()
 
     start_time = time.time()
-    result = algorithm.run()
+    result = algorithm.run_feasibility()
     end_time = time.time()
 
     if result is not None:
         sat, solution = result
         if sat:
             print("Satisfiable!")
+            print("using " + ", ".join([str(k) + ": " + str(v) for k,v in solution.items()]))
             # print(algorithm.build_instance(solution))
         else:
             print("Unsatisfiable!")
