@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from enum import Enum
 from functools import reduce
 import logging
@@ -134,6 +133,7 @@ class FamilyChecker:
         self.symmetries = None
         self.differents = None
         self.properties = None
+        self._optimality_setting = None
 
         self.qualitative_properties = None
         self._engine = engine

@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 
 import stormpy
 import stormpy.core
@@ -9,7 +10,7 @@ from dynasty.jani.quotient_container import Engine as Engine
 from dynasty.smt.model_adapter import *
 from dynasty.annotated_property import AnnotatedProperty
 
-from dynasty.family_checkers.familychecker import FamilyChecker
+from dynasty.family_checkers.familychecker import FamilyChecker, HoleOptions
 
 class QuotientBasedFamilyChecker(FamilyChecker):
     def __init__(self, *args):
