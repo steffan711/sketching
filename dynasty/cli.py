@@ -52,10 +52,11 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option('--restrictions', help="restrictions")
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
+@click.option("--print-stats", is_flag=True)
 @click.option('--check-prerequisites', default=False, help="should prerequisites be checked")
 @click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis']))
-def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, check_prerequisites, partitioning, method):
+def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
@@ -122,7 +123,8 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
 
     logger.info("Finished after {} seconds.".format(end_time - start_time))
 
-    algorithm.print_stats()
+    if print_stats:
+        algorithm.print_stats()
 
     description = "-".join([str(x) for x in
                             [project, sketch, allowed, restrictions, optimality, properties, check_prerequisites,
