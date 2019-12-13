@@ -4,8 +4,8 @@ Dynasty
 This project contains prototypical implementations of synthesis in probabilistic program sketches.
 
 It contains algorithms based on:
-- Milan Ceska, Christian Hensel, Sebastian Junges, Joost-Pieter Katoen: Counterexample-Driven Synthesis for Probabilistic Program Sketches, FM 2019
-- Milan Ceska, Nils Jansen, Sebastian Junges, Joost-Pieter Katoen: Shepherding Hordes of Markov chains, TACAS 2019
+- [1] Milan Ceska, Christian Hensel, Sebastian Junges, Joost-Pieter Katoen: Counterexample-Driven Synthesis for Probabilistic Program Sketches, FM 2019
+- [2] Milan Ceska, Nils Jansen, Sebastian Junges, Joost-Pieter Katoen: Shepherding Hordes of Markov chains, TACAS 2019
 
 The code has been developed by Sebastian Junges.
 More information can be found in his PhD thesis.
@@ -25,10 +25,32 @@ We support three types of problems
  - Feasibility Analysis (and its dual, validity analysis)
  - Optimal Feasibility Analysis
  - Partitioning (or Threshold analysis)
+ 
+We support three methods:
+ - CEGIS [1]
+ - Lifting [2]
+ - (Consistent) Scheduler enumeration [2]
+ 
+and have experimental code support for (rapid) one-by-one, all-in-one, and SMT-based synthesis. 
 
-### Project folders
+As input, we take projects. Below, we first explain what a project is, and then discuss the different analysis types and how to invoke the different methods for these problems. For details about the methods, we refer to publications. 
 
-TODO description
+### Input: Project folders
+
+A project is a folder containing the various inputs for the synthesis. 
+
+We require:
+- A .templ file, which is a PRISM file with various open integer constants (holes).
+- A .allowed file, which lists for each hole the possible values. The instantiations are the Cartesean product of these files.
+- A .properties file, which contains a list of PCTL formulae.
+
+Optionally, a project may contain: 
+- A .restrictions file, which contains restrictions on the intstantiations. Restrictions are currently only supported by CEGIS.
+- A .optimality file, which contains a PCTL formula, a direction, and a relative precision. This file is relevant for optimal feasibility.
+
+Notice that a project may contain more files than necessary, e.g., to allow for slight variations without duplicating everything.
+
+For more information, look at the [examples](examples/)
 
 ### Feasibility Analysis
 
@@ -52,9 +74,6 @@ python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --propertie
 ```bash
 python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --properties reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed cschedenum
 ```
-
-Notice: The CMAX generally reflects blowing up the state space. For the grid examples, it should however be choosen larger than the counters in the properties.
-One may omit the check prerequisites if the sketch already ensures that all rewards are less than infinity.
 
 
 #### All other approaches
@@ -103,3 +122,13 @@ TODO: Descritption
 #### All other approaches
 
 TODO: Description
+
+### Further Options
+
+- `--check-prerequisites`/`--no-check-prerequiites` 
+One may omit the check prerequisites if the sketch already ensures that all rewards are less than infinity.
+
+- `--print-stats` 
+Print statistics at the end. Helpful to understand the algorithm performance, but clutters output. 
+
+## The sources
