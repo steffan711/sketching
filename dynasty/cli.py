@@ -53,7 +53,7 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
 @click.option("--print-stats", is_flag=True)
-@click.option('--check-prerequisites', default=False, help="should prerequisites be checked")
+@click.option('--check-prerequisites', help="should prerequisites be checked", is_flag=True)
 @click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis']))
 def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
@@ -114,11 +114,14 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
             print("Solver finished without returning a result (probably not implemented).")
     else:
         if result is not None:
-            sat, solution = result
+            sat, solution, optimal_value = result
             if sat:
                 print("Satisfiable!")
                 print("using " + ", ".join([str(k) + ": " + str(v) for k,v in solution.items()]))
+                if optimal_value is not None:
+                    print("and induces a value of {}".format(optimal_value))
                 # print(algorithm.build_instance(solution))
+
             else:
                 print("Unsatisfiable!")
         else:

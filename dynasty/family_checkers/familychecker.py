@@ -366,9 +366,9 @@ class FamilyChecker:
                     logger.debug("Criterion {}".format(line))
                     optimality_criterion = stormpy.parse_properties_for_prism_program(line, program)[0]
         logger.debug("Done parsing optimality file.")
-        if not direction:
+        if direction is None:
             raise ValueError("direction not set")
-        if not epsilon:
+        if epsilon is None:
             raise ValueError("epsilon not set")
         if not optimality_criterion:
             raise ValueError("optimality criterion not set")

@@ -107,14 +107,14 @@ class LiftingChecker(QuotientBasedFamilyChecker):
                 if threshold_synthesis_result == ThresholdSynthesisResult.ABOVE:
                     logger.debug("All above.")
                     if self._accept_if_above[0]:
-                        return True, hole_options[0].pick_one_in_family()
+                        return True, hole_options[0].pick_one_in_family(), None
                     else:
                         nr_options_remaining -= hole_options[0].size()
                         hole_options = hole_options[1:]
                 else:
                     logger.debug("All below.")
                     if not self._accept_if_above[0]:
-                        return True, hole_options[0].pick_one_in_family()
+                        return True, hole_options[0].pick_one_in_family(), None
                     else:
                         nr_options_remaining -= hole_options[0].size()
                         hole_options = hole_options[1:]
@@ -132,7 +132,7 @@ class LiftingChecker(QuotientBasedFamilyChecker):
                 hole_options = hole_options_next_round
                 hole_options_next_round = []
 
-        return False, None
+        return False, None, None
 
                 # print("[" + ",".join([str(x) for x in hole_options]) + "]")
 
@@ -489,9 +489,9 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
                 # Plain feasibility checking.
                 threshold_synthesis_result = oracle.decided(threshold)
                 if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.ABOVE and self._accept_if_above:
-                    return True, selected_hole_option.pick_one_in_family()
+                    return True, selected_hole_option.pick_one_in_family(), None
                 if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.BELOW and not self._accept_if_above:
-                    return True, selected_hole_option.pick_one_in_family()
+                    return True, selected_hole_option.pick_one_in_family(), None
             elif mode == 1:
                 assert False
                 # optimal feasibility
@@ -511,7 +511,7 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
             logger.info("Average states so far {}.  Average transitions so far {}".format(total_states / iterations,total_transitions / iterations))
 
         if mode==0:
-            return False, None
+            return False, None, None
         elif mode==1:
             pass
         else:

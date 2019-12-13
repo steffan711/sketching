@@ -36,6 +36,9 @@ class Verifier:
     def initialise_optimality(self, optimality_setting):
         self._optimality = optimality_setting
 
+    @property
+    def optimal_value(self):
+        return self._opt_value
 
     def run(self, instance, all_conflicts, naive_deadlocks=True):
         """
