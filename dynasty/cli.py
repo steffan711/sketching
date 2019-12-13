@@ -61,6 +61,10 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
 
+    if optimality:
+        if partitioning:
+            raise RuntimeError("It does not make sense to combine partitioning and optimality")
+
     if approach == FamilyCheckMethod.Lifting:
         algorithm = LiftingChecker()
     elif approach == FamilyCheckMethod.AllInOne:
@@ -83,16 +87,15 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     if restrictions:
         restriction_path = os.path.join(project, restrictions)
     property_path = os.path.join(project, properties)
+    if optimality:
+        optimality_path = os.path.join(project, optimality)
+    else:
+        optimality_path = None
 
-    algorithm.load_sketch(sketch_path, property_path, constants)
+    algorithm.load_sketch(sketch_path, property_path, optimality_path=optimality_path, constant_str=constants)
     algorithm.load_template_definitions(allowed_path)
     if restrictions:
         algorithm.load_restrictions(restriction_path)
-    if optimality:
-        if partitioning:
-            raise RuntimeError("It does not make sense to combine partitioning and optimality")
-        optimality_path = os.path.join(project, optimality)
-        algorithm.load_optimality(optimality_path)
     algorithm.initialise()
 
     start_time = time.time()

@@ -2,9 +2,6 @@ from collections import OrderedDict
 from enum import Enum
 from functools import reduce
 import logging
-import operator
-import math
-import time
 import functools
 import operator
 
@@ -15,7 +12,6 @@ from dynasty.jani.quotient_container import ThresholdSynthesisResult, Engine
 from dynasty.annotated_property import AnnotatedProperty
 
 logger = logging.getLogger(__name__)
-
 
 def prod(iterable):
     return functools.reduce(operator.mul, iterable, 1)
@@ -75,8 +71,7 @@ class OptimalitySetting:
             return mc_result > best_so_far
 
     def get_violation_property(self, best_so_far, bound_translator):
-        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(),
-                         "Optimality criterion with adapted bound")
+        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(), comment="Optimality criterion with adapted bound")
         if self._direction == "min":
             bound = best_so_far - best_so_far * self._eps
             ct = stormpy.logic.ComparisonType.LESS
@@ -176,7 +171,6 @@ class FamilyChecker:
         :param properties:
         :return:
         """
-        logger.debug("Load properties")
         self.properties = []
         self.qualitative_properties = []
 
@@ -209,7 +203,6 @@ class FamilyChecker:
     def _register_unconstrained_design_space(self, size):
         logger.info("Design space (without constraints): {}".format(size))
 
-
     def load_template_definitions(self, location):
         """
         Load template definitions containing the possible values for the holes
@@ -223,7 +216,6 @@ class FamilyChecker:
         constants_map = dict()
         ordered_holes = list(self.holes.keys())
         for k in ordered_holes:
-
             v = definitions[k]
 
             ep = stormpy.storage.ExpressionParser(self.expression_manager)
@@ -294,13 +286,21 @@ class FamilyChecker:
         constants_map = self._constants_map(constant_str, self.sketch)
         self.sketch = self.sketch.define_constants(constants_map)
 
-    def load_sketch(self, path, property_path, constant_str=""):
+    def load_sketch(self, path, property_path, optimality_path=None, constant_str=""):
         logger.info("Load sketch from {}  with constants {}".format(path, constant_str))
 
         prism_program = stormpy.parse_prism_program(path)
         self.expression_manager = prism_program.expression_manager
         self._load_properties_from_file(prism_program, property_path, constant_str)
-        self.sketch, self.properties = prism_program.to_jani(self.properties)
+        if optimality_path is not None:
+            self._load_optimality(optimality_path, prism_program)
+        all_properties = self.properties + [self._optimality_setting.criterion]
+        self.sketch, all_properties = prism_program.to_jani(all_properties)
+        if optimality_path is not None:
+            self.properties = all_properties[:-1]
+            self._optimality_setting._criterion = all_properties[-1]
+        else:
+            self.properties = all_properties
         self._set_constants(constant_str)
         self._find_holes()
         self._annotate_properties(constant_str)
@@ -348,7 +348,7 @@ class FamilyChecker:
         self.symmetries = symmetries
         self.differents = differents
 
-    def load_optimality(self, path):
+    def _load_optimality(self, path, program):
         logger.debug("Loading optimality info.")
         direction = None
         epsilon = None
@@ -363,7 +363,8 @@ class FamilyChecker:
                 elif line.startswith("relative"):
                     epsilon = float(line.split()[1])
                 else:
-                    optimality_criterion = self._load_property_for_sketch(line)[0]
+                    logger.debug("Criterion {}".format(line))
+                    optimality_criterion = stormpy.parse_properties_for_prism_program(line, program)[0]
         logger.debug("Done parsing optimality file.")
         if not direction:
             raise ValueError("direction not set")
