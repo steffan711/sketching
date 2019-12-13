@@ -62,6 +62,10 @@ class OptimalitySetting:
     def criterion(self):
         return self._criterion
 
+    @property
+    def direction(self):
+        return self._direction
+
     def is_improvement(self, mc_result, best_so_far):
         if best_so_far is None:
             return True

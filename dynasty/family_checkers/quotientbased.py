@@ -22,6 +22,7 @@ class QuotientBasedFamilyChecker(FamilyChecker):
         self._accept_if_above = []
 
     def initialise(self):
+        print(self._optimality_setting)
         self.mc_formulae = []
         self.mc_formulae_alt = []
         for p in self.properties:
@@ -41,7 +42,20 @@ class QuotientBasedFamilyChecker(FamilyChecker):
                 accept_if_above = True
             self.mc_formulae.append(formula)
             self.mc_formulae_alt.append(alt_formula)
+
             self._accept_if_above.append(accept_if_above)
+        if self._optimality_setting is not None:
+            opt_formula = self._optimality_setting.criterion.raw_formula.clone()
+            opt_alt_formula = self._optimality_setting.criterion.raw_formula.clone()
+            if self._optimality_setting.direction == "max":
+                opt_formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
+                opt_alt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
+            else:
+                assert self._optimality_setting.direction == "min"
+                opt_formula.set_optimality_type(stormpy.OptimizationDirection.Minimize)
+                opt_alt_formula.set_optimality_type(stormpy.OptimizationDirection.Maximize)
+            self.mc_formulae.append(opt_formula)
+            self.mc_formulae_alt.append(opt_alt_formula)
 
     def _analyse_from_scratch(self, _open_constants, holes_options, all_in_one_constants, threshold):
         remember = set()  # set(_open_constants)#set()
@@ -445,9 +459,9 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
         if self.input_has_multiple_properties():
             raise NotImplementedError("Support for multiple properties is not implemented (but straightforward)")
         if self.input_has_optimality_property():
-            raise NotImplementedError("Support for optimality is not implemented, but straightforward")
-            #self._run(mode=1)
-        return self._run()
+            return self._run(mode=1)
+        else:
+            return self._run()
 
     def _run(self, mode=0):
         """
@@ -455,12 +469,17 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
         :param mode: 0 feasibility, 1 optimal feasibility, 2 partitioning
         :return:
         """
-        if mode == 1:
-            raise NotImplementedError("Keep optimal not yet implemented")
+
+        #TODO dont use integers for mode.
         prep_start = time.time()
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
         self._open_constants = self.holes
-        threshold = float(self.thresholds[0])
+        if mode == 1:
+            # threshold will be optimal value
+            threshold = math.inf if self._optimality_setting.direction == "min" else 0.0
+        else:
+            threshold = float(self.thresholds[0])
+
         logger.debug("Threshold is {}".format(threshold))
 
         iterations = 0
@@ -475,6 +494,7 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
         above = []
         below = []
 
+        best_result = None
         total_states = 0
         total_transitions = 0
 
@@ -493,8 +513,14 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
                 if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.BELOW and not self._accept_if_above:
                     return True, selected_hole_option.pick_one_in_family(), None
             elif mode == 1:
-                assert False
-                # optimal feasibility
+                # Optimal feasibility checking.
+                threshold_synthesis_result = oracle.decided(threshold)
+                if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.ABOVE and self._optimality_setting.direction == "max":
+                    threshold = oracle.upper_bound()
+                    best_result = selected_hole_option.pick_one_in_family()
+                if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.BELOW and self._optimality_setting.direction == "min":
+                    threshold = oracle.lower_bound()
+                    best_result = selected_hole_option.pick_one_in_family()
             elif mode == 2:
                 threshold_synthesis_result = oracle.decided(threshold)
                 if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.ABOVE:
@@ -502,8 +528,6 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
                 if threshold_synthesis_result == dynasty.jani.quotient_container.ThresholdSynthesisResult.BELOW:
                     below.append(selected_hole_option)
 
-
-            # TODO For partitioning, the result should be stored somehow.
             logger.info("Ran for {}, expect total up to: {}".format(prep_time + time.time() - iter_start, prep_time + (
                 time.time() - iter_start) * total_nr_options / iterations))
             total_states += oracle._mdp_handling.mdp.nr_states
@@ -513,7 +537,7 @@ class ConsistentSchedChecker(QuotientBasedFamilyChecker):
         if mode==0:
             return False, None, None
         elif mode==1:
-            pass
+            return best_result is not None, best_result, threshold
         else:
             return above, below
 

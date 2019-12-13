@@ -239,7 +239,6 @@ class ModelHandling:
         result = stormpy.model_checking(self._model, rew0_formula, only_initial_states=False, extract_scheduler=True)
         return result
 
-
     def mc_model_hybrid(self, index=0):
         stormpy.check_model_hybrid(self._submodel, self._formulae[index])
 
@@ -247,6 +246,13 @@ class ModelHandling:
         stormpy.check_model_dd(self._submodel, self._formulae[index])
 
     def mc_model(self, index=0, compute_action_values=False, check_dir_2 = always_true):
+        """
+
+        :param index:
+        :param compute_action_values:
+        :param check_dir_2:
+        :return:
+        """
         assert len(self._formulae) > index
         assert not compute_action_values
         is_dtmc = False
@@ -260,7 +266,7 @@ class ModelHandling:
             self._mc_mdp_calls += 1
             self._mc_mdp_executions += 1
 
-
+        #TODO set from the outside.
         env = stormpy.Environment()
         env.solver_environment.minmax_solver_environment.precision = stormpy.Rational(0.0001)
         if is_dtmc:

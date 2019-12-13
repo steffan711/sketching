@@ -29,7 +29,6 @@ class Synthesiser(FamilyChecker):
         self._add_cuts = add_cuts
         self._verifier = Verifier()
         self._smtlock = threading.Lock()
-        self._optimality_setting = None
         self.tasks = threads
         self._executor = conc.ThreadPoolExecutor(max_workers=self.tasks)
         self.stats_keyword = "cegis-stats"
