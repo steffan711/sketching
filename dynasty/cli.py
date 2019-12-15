@@ -8,6 +8,7 @@ import time
 from dynasty.family_checkers.familychecker import FamilyCheckMethod
 from dynasty.family_checkers.quotientbased import LiftingChecker, AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker
 from dynasty.family_checkers.cegis import Synthesiser
+from dynasty import version
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis']))
 def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
+    print("This is Dynasty version {}.".format(version()))
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
