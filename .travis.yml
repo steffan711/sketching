@@ -32,7 +32,7 @@ jobs:
       deploy:
         - provider: script
           skip_cleanup: true
-          script: bash travis/deploy_docker.sh dynasty
+          script: bash travis/deploy_docker.sh sketching
     # Docker stormpy master in debug mode
     - os: linux
       compiler: gcc
@@ -42,7 +42,7 @@ jobs:
       deploy:
         - provider: script
           skip_cleanup: true
-          script: bash travis/deploy_docker.sh dynasty
+          script: bash travis/deploy_docker.sh sketching
     # Docker stormpy latest release
     - os: linux
       compiler: gcc
