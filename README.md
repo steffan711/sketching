@@ -1,5 +1,6 @@
 Dynasty
 =================================================
+[![Build Status](https://travis-ci.org/moves-rwth/sketching.svg?branch=master)](https://travis-ci.org/moves-rwth/sketching)
 
 This project contains prototypical implementations of synthesis in probabilistic program sketches.
 
@@ -10,7 +11,9 @@ It contains algorithms based on:
 The code has been developed by Sebastian Junges.
 More information can be found in his PhD thesis.
 
-## Dependencies
+## Installation
+
+### Dependencies
 
 - Python bindings for [z3](https://github.com/Z3Prover/z3)
 - The model checker storm and the python bindings for storm. Please check the [installation hints](https://moves-rwth.github.io/stormpy/installation.html#installation-steps).
@@ -18,6 +21,26 @@ More information can be found in his PhD thesis.
   * click
   * pysmt
 
+### Install
+
+First, run: 
+
+```
+python setup.py install
+```
+
+This will automatically install dynasty and its python dependencies. Notice that you have to install storm yourself (see above).
+If you are planning on making changes to the code, we suggest to use `python setup.py develop`
+
+To run the tests, run:
+```
+python -m pytest dynasty_tests
+```
+
+
+### Docker container
+
+Coming soon.
 
 ## Usage examples
 
@@ -53,6 +76,11 @@ Notice that a project may contain more files than necessary, e.g., to allow for 
 For more information, look at the [examples](examples/)
 
 ### Feasibility Analysis
+
+This problem tries to find an instantiation of the holes such that the induced program satisfies the properties.
+All methods provided here are complete, e.g., if the there is no feasible instantiation, the algorithms eventually report so.
+
+Notice that one has to be careful about potentially ill-formed sketches. The checks performed are not necessarily sufficient.
 
 #### CEGIS
 ```
