@@ -88,6 +88,8 @@ class LiftingChecker(QuotientBasedFamilyChecker):
             return self._run_optimal_feasibility()
         if self.input_has_multiple_properties():
             raise RuntimeError("Lifting is only implemented for single properties")
+        if self.input_has_restrictions():
+            raise RuntimeError("Restrictions are not supported by quotient based approaches")
 
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
 
@@ -274,6 +276,9 @@ class LiftingChecker(QuotientBasedFamilyChecker):
 
         if self.input_has_multiple_properties():
             raise RuntimeError("Lifting is only implemented for single properties")
+
+        if self.input_has_restrictions():
+            raise RuntimeError("Restrictions are not supported by quotient based approaches")
 
         self.jani_quotient_builder = JaniQuotientBuilder(self.sketch, self.holes)
 
