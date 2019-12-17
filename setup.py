@@ -62,23 +62,6 @@ class ConfigInstall(install):
     def run(self):
         install.run(self)
 
-class Tox(test):
-    """
-    Custom command to execute the dynasty_tests using tox
-    """
-
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-        self.test_args = []
-        self.test_suite = True
-
-    def run_tests(self):
-        # import here, cause outside the eggs aren't loaded
-        import tox
-        errcode = tox.cmdline(self.test_args)
-        sys.exit(errcode)
-
-
 setup(
     name="Dynasty",
     version=obtain_version(),
@@ -92,7 +75,6 @@ setup(
     long_description="Dynasty is a prototype implementation for synthesis in probabilistic program sketches and PCTL formulae",
     packages=["dynasty", "dynasty.cegis", "dynasty.family_checkers", "dynasty.jani", "dynasty.model_handling", "dynasty.smt"],
     install_requires=[ 'click', 'stormpy'],
-    tests_require=['pytest'],
     extras_require={
 
     },
@@ -104,6 +86,5 @@ setup(
     cmdclass={
         'develop': ConfigDevelop,
         'install': ConfigInstall,
-        'test': Tox
     }
 )
