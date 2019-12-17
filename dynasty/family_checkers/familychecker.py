@@ -351,10 +351,8 @@ class FamilyChecker:
             for hole_name in different:
                 if hole_name not in self.holes:
                     raise ValueError("Key {} not in template, but in list of differents".format(hole_name))
-        if len(symmetries) > 0:
-            self.symmetries = symmetries
-        if len(differents) > 0:
-            self.differents = differents
+        self.symmetries = symmetries
+        self.differents = differents
 
     def _load_optimality(self, path, program):
         logger.debug("Loading optimality info.")
@@ -392,7 +390,13 @@ class FamilyChecker:
         return self._optimality_setting is not None
 
     def input_has_restrictions(self):
-        return self.symmetries is not None or self.differents is not None
+        return self._input_has_differents() or self._input_has_symmetries()
+
+    def _input_has_symmetries(self):
+        return self.symmetries is not None and len(self.symmetries) > 0
+
+    def _input_has_differents(self):
+        return self.differents is not None and len(self.differents) > 0
 
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
