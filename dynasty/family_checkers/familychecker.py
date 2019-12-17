@@ -298,7 +298,9 @@ class FamilyChecker:
         self._load_properties_from_file(prism_program, property_path, constant_str)
         if optimality_path is not None:
             self._load_optimality(optimality_path, prism_program)
-        all_properties = self.properties + [self._optimality_setting.criterion]
+            all_properties = self.properties + [self._optimality_setting.criterion]
+        else:
+            all_properties = self.properties
         self.sketch, all_properties = prism_program.to_jani(all_properties)
         if optimality_path is not None:
             self.properties = all_properties[:-1]
