@@ -10,8 +10,7 @@ import stormpy.utility
 from dynasty.cegis.stats import SynthetiserStats as SynthetiserStates
 from dynasty.family_checkers.familychecker import FamilyChecker
 from dynasty.cegis.verifier import Verifier
-
-from z3 import *
+import z3
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ class Synthesiser(FamilyChecker):
             solver_result = self.solver.check()
             solver_time = time.time() - solver_time
             self.stats.solver_times.append(solver_time)
-            if solver_result != sat:
+            if solver_result != z3.sat:
                 self._smtlock.release()
                 logger.debug("No further instances to explore.")
                 break
@@ -161,11 +160,11 @@ class Synthesiser(FamilyChecker):
         return dont_care_set
 
     def _initialize_solver(self):
-        self.solver = Solver()
+        self.solver = z3.Solver()
         variables = dict()
         for k, v in self.hole_options.items():
             # Create Integer Variable
-            var = Int(k)
+            var = z3.Int(k)
             # Store the variable.
             self.template_metavariables[var] = k
             variables[k] = var
@@ -217,7 +216,7 @@ class Synthesiser(FamilyChecker):
         self.solver.push()
         i = 0
         print("Counting remaining models....")
-        while self.solver.check() == sat:
+        while self.solver.check() == z3.sat:
             sat_model = self.solver.model()
             clause = Not(And([var == sat_model[var] for var, hole in self.template_metavariables.items()]))
             self.solver.add(clause)
@@ -242,8 +241,8 @@ class Synthesiser(FamilyChecker):
         :return: 
         """
         for conflict in conflicts:
-            clause = Not(
-                And([var == sat_model[var] for var, hole in self.template_metavariables.items() if hole in conflict]))
+            clause = z3.Not(
+                z3.And([var == sat_model[var] for var, hole in self.template_metavariables.items() if hole in conflict]))
             logger.info("learned clause: {}".format(clause))
             if len(conflict) != len(self.template_metavariables):
                 self.learned_clauses.append(clause)
