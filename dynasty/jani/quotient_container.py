@@ -195,6 +195,9 @@ class JaniQuotientContainer:
         return self._full_colors
 
     def scheduler_color_analysis(self):
+        if self._mdp_handling.submodel_is_dtmc():
+            # NOthing to do
+            return
         start_time = time.time()
         store_colors = True
         if not self._latest_result:
@@ -208,6 +211,8 @@ class JaniQuotientContainer:
         color_maps = []
         self._hole_option_maps = []
         self._inconsistencies = []
+        assert self._latest_result.scheduler is not None
+        assert self._latest_result.alt_scheduler is not None
         for scheduler in [self._latest_result.scheduler, self._latest_result.alt_scheduler]:
             logger.info("Compute colors in the scheduler...")
             logger.info("Applying scheduler...")
@@ -227,7 +232,7 @@ class JaniQuotientContainer:
 
             hole_option_map = self._selected_hole_counts_incremental(state_map, action_map, self._latest_result.lower_bound_result,
                                                          self._latest_result.upper_bound_result)
-
+            logger.debug("Selected holes in scheduler: {}".format(hole_option_map))
             print(hole_option_map)
 
             self._inconsistencies.append(self._inconsistent_options(hole_option_map))
@@ -278,7 +283,12 @@ class JaniQuotientContainer:
         selected_hole_option_map = OrderedDict()
         for key in self._ordered_holes:
             selected_hole_option_map[key] = Counter()
-        scale_factor = 1.0/abs(mc_lower_result.at(self._mdp_handling.full_mdp.initial_states[0]) - mc_upper_result.at(self._mdp_handling.full_mdp.initial_states[0]))
+        difference = mc_lower_result.at(self._mdp_handling.full_mdp.initial_states[0]) - mc_upper_result.at(self._mdp_handling.full_mdp.initial_states[0])
+        if difference < 0.001:
+            # avoid numerical issues.
+            # TODO Think about handling diff = 0 seperately.
+            difference = 0.001
+        scale_factor = 1.0/abs(difference)
         for submdp_state, submdp_action in zip(state_map, action_map):
             if abs(mc_lower_result.at(submdp_state) - mc_upper_result.at(submdp_state))*scale_factor < 0.3:
                 continue
@@ -343,6 +353,13 @@ class JaniQuotientContainer:
     def _lower_bound_inconsistencies(self):
         return self._inconsistencies[1] if self._latest_result.maximising else self._inconsistencies[0]
 
+    def is_upper_bound_tight(self):
+        return len(self._upper_bound_inconsistencies()) == 0
+
+    def _upper_bound_inconsistencies(self):
+        return self._inconsistencies[0] if self._latest_result.maximising else self._inconsistencies[1]
+
+
     def propose_split(self, directions = None):
         start_time = time.time()
         logger.debug("Propose split...!")
@@ -397,7 +414,7 @@ class JaniQuotientContainer:
             self._mdp_handling.mc_model_hybrid(index)
         else:
             assert engine == Engine.Sparse
-            self._latest_result = self._mdp_handling.mc_model(index, compute_action_values=False, check_dir_2=is_inside_function(threshold))
+            self._latest_result = self._mdp_handling.mc_model(index, compute_action_values=False, check_dir_2=is_inside_function(threshold) if threshold is not None else always_true)
         end_time = time.time()
         self._mc_time += end_time - start_time
         return self._latest_result

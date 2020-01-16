@@ -1,11 +1,7 @@
 from collections import OrderedDict
-from collections.abc import Iterable
 from enum import Enum
 from functools import reduce
 import logging
-import operator
-import math
-import time
 import functools
 import operator
 
@@ -16,7 +12,6 @@ from dynasty.jani.quotient_container import ThresholdSynthesisResult, Engine
 from dynasty.annotated_property import AnnotatedProperty
 
 logger = logging.getLogger(__name__)
-
 
 def prod(iterable):
     return functools.reduce(operator.mul, iterable, 1)
@@ -70,6 +65,10 @@ class OptimalitySetting:
     def criterion(self):
         return self._criterion
 
+    @property
+    def direction(self):
+        return self._direction
+
     def is_improvement(self, mc_result, best_so_far):
         if best_so_far is None:
             return True
@@ -79,8 +78,7 @@ class OptimalitySetting:
             return mc_result > best_so_far
 
     def get_violation_property(self, best_so_far, bound_translator):
-        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(),
-                         "Optimality criterion with adapted bound")
+        vp = stormpy.Property("optimality_violation", self._criterion.raw_formula.clone(), comment="Optimality criterion with adapted bound")
         if self._direction == "min":
             bound = best_so_far - best_so_far * self._eps
             ct = stormpy.logic.ComparisonType.LESS
@@ -99,7 +97,10 @@ def open_constants(model):
 class HoleOptions(OrderedDict):
     def __str__(self):
         return "HoleOptions{" + ",".join(
-            ["{}: [{}]".format(k, ",".join(str(x) for x in v)) for k, v in self.items()]) + "}"
+            ["{}: [{}]".format(k, ",".join([str(x) for x in v])) for k, v in self.items()]) + "}"
+
+    def __repr__(self):
+        return self.__str__()
 
     def size(self):
         def prod(iterable):
@@ -115,6 +116,12 @@ class HoleOptions(OrderedDict):
                 for index, ref in enumerate(self.get(k)):
                     if ref == v:
                         result[k].append(index)
+        return result
+
+    def pick_one_in_family(self):
+        result = dict()
+        for k, v in self.items():
+            result[k] = v[0]
         return result
 
 
@@ -137,6 +144,7 @@ class FamilyChecker:
         self.symmetries = None
         self.differents = None
         self.properties = None
+        self._optimality_setting = None
 
         self.qualitative_properties = None
         self.quantitative_properties = None
@@ -171,7 +179,6 @@ class FamilyChecker:
         :param properties:
         :return:
         """
-        logger.debug("Load properties")
         self.properties = []
         self.qualitative_properties = []
         self.quantitative_properties = []
@@ -210,7 +217,6 @@ class FamilyChecker:
     def _register_unconstrained_design_space(self, size):
         logger.info("Design space (without constraints): {}".format(size))
 
-
     def load_template_definitions(self, location):
         """
         Load template definitions containing the possible values for the holes
@@ -224,7 +230,6 @@ class FamilyChecker:
         constants_map = dict()
         ordered_holes = list(self.holes.keys())
         for k in ordered_holes:
-
             v = definitions[k]
 
             ep = stormpy.storage.ExpressionParser(self.expression_manager)
@@ -295,13 +300,23 @@ class FamilyChecker:
         constants_map = self._constants_map(constant_str, self.sketch)
         self.sketch = self.sketch.define_constants(constants_map)
 
-    def load_sketch(self, path, property_path, constant_str=""):
+    def load_sketch(self, path, property_path, optimality_path=None, constant_str=""):
         logger.info("Load sketch from {}  with constants {}".format(path, constant_str))
 
         prism_program = stormpy.parse_prism_program(path)
         self.expression_manager = prism_program.expression_manager
         self._load_properties_from_file(prism_program, property_path, constant_str)
-        self.sketch, self.properties = prism_program.to_jani(self.properties)
+        if optimality_path is not None:
+            self._load_optimality(optimality_path, prism_program)
+            all_properties = self.properties + [self._optimality_setting.criterion]
+        else:
+            all_properties = self.properties
+        self.sketch, all_properties = prism_program.to_jani(all_properties)
+        if optimality_path is not None:
+            self.properties = all_properties[:-1]
+            self._optimality_setting._criterion = all_properties[-1]
+        else:
+            self.properties = all_properties
         self._set_constants(constant_str)
         self._find_holes()
         self._annotate_properties(constant_str)
@@ -349,7 +364,7 @@ class FamilyChecker:
         self.symmetries = symmetries
         self.differents = differents
 
-    def load_optimality(self, path):
+    def _load_optimality(self, path, program):
         logger.debug("Loading optimality info.")
         direction = None
         epsilon = None
@@ -364,17 +379,34 @@ class FamilyChecker:
                 elif line.startswith("relative"):
                     epsilon = float(line.split()[1])
                 else:
-                    optimality_criterion = self._load_property_for_sketch(line)[0]
+                    logger.debug("Criterion {}".format(line))
+                    optimality_criterion = stormpy.parse_properties_for_prism_program(line, program)[0]
         logger.debug("Done parsing optimality file.")
-        if not direction:
+        if direction is None:
             raise ValueError("direction not set")
-        if not epsilon:
+        if epsilon is None:
             raise ValueError("epsilon not set")
         if not optimality_criterion:
             raise ValueError("optimality criterion not set")
 
         self._optimality_setting = OptimalitySetting(optimality_criterion, direction, epsilon)
 
+    def input_has_multiple_properties(self):
+        if self._optimality_setting is not None:
+            return len(self.properties) > 0
+        return len(self.properties) > 1
+
+    def input_has_optimality_property(self):
+        return self._optimality_setting is not None
+
+    def input_has_restrictions(self):
+        return self._input_has_differents() or self._input_has_symmetries()
+
+    def _input_has_symmetries(self):
+        return self.symmetries is not None and len(self.symmetries) > 0
+
+    def _input_has_differents(self):
+        return self.differents is not None and len(self.differents) > 0
 
     def holes_as_string(self):
         return ",".join([name for name in self.holes])
@@ -384,6 +416,12 @@ class FamilyChecker:
 
     def print_stats(self):
         pass
+
+    def run_feasibility(self):
+        raise RuntimeError("This method should be overridden")
+
+    def run_partitioning(self):
+        raise RuntimeError("This method should be overridden")
 
     def store_in_statistics(self):
         return []

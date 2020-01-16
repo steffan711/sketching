@@ -36,6 +36,9 @@ class Verifier:
     def initialise_optimality(self, optimality_setting):
         self._optimality = optimality_setting
 
+    @property
+    def optimal_value(self):
+        return self._opt_value
 
     def run(self, instance, all_conflicts, naive_deadlocks=True):
         """
@@ -210,7 +213,7 @@ class Verifier:
                 violated.append(p.property)
                 if not check_all:
                     break
-        if self._optimality:
+        if self._optimality and len(violated) == 0:
             mc_result = stormpy.model_checking(model, self._optimality.criterion).at(model.initial_states[0])
             if self._optimality.is_improvement(mc_result, self._opt_value):
                 logger.debug("Optimal value improved to {}.".format(mc_result))

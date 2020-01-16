@@ -9,6 +9,7 @@ from dynasty.family_checkers.familychecker import FamilyCheckMethod
 from dynasty.family_checkers.quotientbased import LiftingChecker, AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker
 from dynasty.family_checkers.cegis import Synthesiser
 from dynasty.family_checkers.smartsearch import SmartSearcher
+from dynasty import version
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +54,19 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option('--restrictions', help="restrictions")
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
-@click.option('--check-prerequisites', default=False, help="should prerequisites be checked")
+@click.option("--print-stats", is_flag=True)
+@click.option('--check-prerequisites', help="should prerequisites be checked", is_flag=True)
+@click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis', 'smartsearch']))
-def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, check_prerequisites, method):
+def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
+    print("This is Dynasty version {}.".format(version()))
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
+
+    if optimality:
+        if partitioning:
+            raise RuntimeError("It does not make sense to combine partitioning and optimality")
 
     if approach == FamilyCheckMethod.Lifting:
         algorithm = LiftingChecker()
@@ -84,34 +92,50 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     if restrictions:
         restriction_path = os.path.join(project, restrictions)
     property_path = os.path.join(project, properties)
+    if optimality:
+        optimality_path = os.path.join(project, optimality)
+    else:
+        optimality_path = None
 
-    algorithm.load_sketch(sketch_path, property_path, constants)
+    algorithm.load_sketch(sketch_path, property_path, optimality_path=optimality_path, constant_str=constants)
     algorithm.load_template_definitions(allowed_path)
     if restrictions:
         algorithm.load_restrictions(restriction_path)
-    if optimality:
-        optimality_path = os.path.join(project, optimality)
-        algorithm.load_optimality(optimality_path)
     algorithm.initialise()
 
     start_time = time.time()
-    result = algorithm.run()
+    if partitioning:
+        result = algorithm.run_partitioning()
+    else:
+        result = algorithm.run_feasibility()
     end_time = time.time()
 
-    if result is not None:
-        sat, solution = result
-        if sat:
-            print("Satisfiable!")
-            # print(algorithm.build_instance(solution))
+    if partitioning:
+        if result is not None:
+            above, below = result
+            print("Subfamilies above: ")
+            print(above)
         else:
-            print("Unsatisfiable!")
+            print("Solver finished without returning a result (probably not implemented).")
     else:
-        print("Solver finished without a result provided.")
+        if result is not None:
+            sat, solution, optimal_value = result
+            if sat:
+                print("Satisfiable!")
+                print("using " + ", ".join([str(k) + ": " + str(v) for k,v in solution.items()]))
+                if optimal_value is not None:
+                    print("and induces a value of {}".format(optimal_value))
+                # print(algorithm.build_instance(solution))
 
+            else:
+                print("Unsatisfiable!")
+        else:
+            print("Solver finished without a result provided.")
 
     logger.info("Finished after {} seconds.".format(end_time - start_time))
 
-    algorithm.print_stats()
+    if print_stats:
+        algorithm.print_stats()
 
     description = "-".join([str(x) for x in
                             [project, sketch, allowed, restrictions, optimality, properties, check_prerequisites,
