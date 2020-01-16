@@ -31,7 +31,8 @@ class FamilyCheckMethod(Enum):
     DtmcIteration = 2,
     AllInOne = 3,
     SMT = 4,
-    CEGIS = 5
+    CEGIS = 5,
+    SmartSearch = 6,
 
     @classmethod
     def from_string(cls, input):
@@ -53,6 +54,8 @@ class FamilyCheckMethod(Enum):
             return cls.SMT
         elif input == "cegis":
             return cls.CEGIS
+        elif input == "smartsearch":
+            return cls.SmartSearch
         else:
             return None
 
@@ -136,6 +139,7 @@ class FamilyChecker:
         self.properties = None
 
         self.qualitative_properties = None
+        self.quantitative_properties = None
         self._engine = engine
         # keyword that is written to stats files to help restore stats correctly.
         self.stats_keyword = "genericfamilychecker-stats"
@@ -170,6 +174,7 @@ class FamilyChecker:
         logger.debug("Load properties")
         self.properties = []
         self.qualitative_properties = []
+        self.quantitative_properties = []
 
         for p in properties:
             # prop = self._load_property_for_sketch(p, constant_str)[0]
@@ -180,6 +185,11 @@ class FamilyChecker:
 
                 if True:  # prop.raw_formula.is_probability_operator and prop.raw_formula.threshold > 0 and prop.raw_formula.threshold < 1:
                     self.properties.append(prop)
+
+            for prop2 in stormpy.parse_properties_for_prism_program(p, program):
+                assert prop2.raw_formula.has_bound
+                prop2.raw_formula.remove_bound()
+                self.quantitative_properties.append(prop2)
         _constants_map = self._constants_map(constant_str, program)
 
 

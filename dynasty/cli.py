@@ -8,6 +8,7 @@ import time
 from dynasty.family_checkers.familychecker import FamilyCheckMethod
 from dynasty.family_checkers.quotientbased import LiftingChecker, AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker
 from dynasty.family_checkers.cegis import Synthesiser
+from dynasty.family_checkers.smartsearch import SmartSearcher
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
 @click.option('--check-prerequisites', default=False, help="should prerequisites be checked")
-@click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis']))
+@click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis', 'smartsearch']))
 def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, check_prerequisites, method):
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
@@ -72,6 +73,8 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
     elif approach == FamilyCheckMethod.CEGIS:
         algorithm = Synthesiser(threads=1, check_prerequisites=check_prerequisites,
                               add_cuts=backward_cuts)
+    elif approach == FamilyCheckMethod.SmartSearch:
+        algorithm = SmartSearcher()
     else:
         assert None
 

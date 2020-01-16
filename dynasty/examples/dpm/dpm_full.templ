@@ -1,0 +1,211 @@
+dtmc
+
+// To make it more challenging, we can extend the model and consider low and  high priority requests
+// using two request queues.
+
+const int qMax = 20;
+const int lMax = 3;
+const int eMax = 100;
+
+const int X;
+const int Y;
+const int Z;
+
+const int T1U;
+const int T2U;
+
+module CLOCK
+
+	c : [0..1];
+
+	[tick1] c=0 -> (c'=1);
+	[tick2] c=1 -> (c'=0);
+
+endmodule
+
+// POWER MANAGER
+
+module PM
+
+	pm  :  [0..4] init 3;
+	// 0 - go to active
+	// 1 - go to idle
+	// 2 - go to idlelp
+	// 3 - go to stby
+	// 4 - go to sleep
+
+// Now, we have here only a very simple probabilistic manager. Our goal would be to synthesise
+// a more complicated manager that using the information about the current occupancy of the queue
+//and thus it is able to satisfy required performance attributes.
+
+//Few variants I tried
+
+// Always active (all commands disabled) Power = 23429, items in the queue = 2693, lost requests = 97
+ 	 [tick1] q*10 < T1U*qMax   -> (pm'=X);
+
+    [tick1] q*10 >= T1U*qMax & q*10 < T2U*qMax -> (pm'=Y);
+
+    [tick1] q*10 >= T2U*qMax ->  (pm'=Z);
+endmodule
+
+// SERVICE PROVIDER
+
+module SP
+
+	sp : [0..10] init 6;
+	// 0 active
+	// 1 idle
+	// 2 active_idlelp
+	// 3 idlelp
+	// 4 idlelp_active
+	// 5 active_stby
+	// 6 stby
+	// 7 stby_active
+	// 8 active_sleep
+	// 9 sleep
+	// 10 sleep_active
+
+	// states where PM has no control (transient states)
+	[tick2] sp=2  -> 0.75   : (sp'=2) + 0.25   : (sp'=3);  // active_idlelp
+	[tick2] sp=4  -> 0.25   : (sp'=0) + 0.75   : (sp'=4);  // idlelp_active
+	[tick2] sp=5  -> 0.9  : (sp'=5) + 0.1  : (sp'=6);  // active_stby
+	[tick2] sp=7  -> 0.1  : (sp'=0) + 0.9  : (sp'=7);  // stby_active
+	[tick2] sp=8  -> 0.95 : (sp'=8) + 0.05 : (sp'=9);  // active_sleep
+	[tick2] sp=10 -> 0.05 : (sp'=0) + 0.95 : (sp'=10); // sleep_active
+
+	// states where PM has control
+	// goto_active
+	[tick2] sp=0 & pm=0 -> (sp'=0); // active
+	[tick2] sp=1 & pm=0 -> (sp'=0); // idle
+	[tick2] sp=3 & pm=0 -> (sp'=4); // idlelp
+	[tick2] sp=6 & pm=0 -> (sp'=7); // stby
+	[tick2] sp=9 & pm=0 -> (sp'=10); // sleep
+	// goto_idle
+	[tick2] sp=0 & pm=1 -> (sp'=1); // active
+	[tick2] sp=1 & pm=1 -> (sp'=1); // idle
+	[tick2] sp=3 & pm=1 -> (sp'=3); // idlelp
+	[tick2] sp=6 & pm=1 -> (sp'=6); // stby
+	[tick2] sp=9 & pm=1 -> (sp'=9); // sleep
+	// goto_idlelp
+	[tick2] sp=0 & pm=2 -> (sp'=2); // active
+	[tick2] sp=1 & pm=2 -> (sp'=2); // idle
+	[tick2] sp=3 & pm=2 -> (sp'=3); // idlelp
+	[tick2] sp=6 & pm=2 -> (sp'=6); // stby
+	[tick2] sp=9 & pm=2 -> (sp'=9); // sleep
+	// goto_stby
+	[tick2] sp=0 & pm=3 -> (sp'=5); // active
+	[tick2] sp=1 & pm=3 -> (sp'=5); // idle
+	[tick2] sp=3 & pm=3 -> (sp'=5); // idlelp
+	[tick2] sp=6 & pm=3 -> (sp'=6); // stby
+	[tick2] sp=9 & pm=3 -> (sp'=9); // sleep
+	// goto_sleep
+	[tick2] sp=0 & pm=4 -> (sp'=8); // active
+	[tick2] sp=1 & pm=4 -> (sp'=8); // idle
+	[tick2] sp=3 & pm=4 -> (sp'=8); // idlelp
+	[tick2] sp=6 & pm=4 -> (sp'=8); // stby
+	[tick2] sp=9 & pm=4 -> (sp'=9); // sleep
+
+endmodule
+
+
+// SERVICE REQUESTER
+module SR
+
+	sr : [0..1] init 0; // 0 - idle and 1 - 1req
+
+	[tick2] sr=0 -> 0.898: (sr'=0) + 0.102: (sr'=1);
+	[tick2] sr=1 -> 0.854: (sr'=0) + 0.146: (sr'=1);
+
+	//a two-queue varinat
+
+	//sr : [0..2] init 0; // 0 - idle, 1 - Hreq, 2-Lreq
+
+	//[tick2] sr=0 -> 0.898: (sr'=0) + 0.102: (sr'=1) + 0.102: (sr'=2);
+	//[tick2] sr=1 -> 0.454: (sr'=0) + 0.273: (sr'=1) + 0.273: (sr'=2);
+	//[tick2] sr=2 -> 0.454: (sr'=0) + 0.273: (sr'=1) + 0.273: (sr'=2);
+
+endmodule
+
+
+// SERVICE REQUEST QUEUE
+module SRQ
+
+	q : [0..qMax] init 10;
+	lost : [0..lMax] init 0;
+
+	[tick2] sr=0 & sp>0 -> true; // do not serve and nothing arrives
+	[tick2] sr=1 & sp>0 & q<qMax -> (q' = q + 1); // do not serve and a request arrives
+	[tick2] sr=1 & sp>0 & q=qMax -> (lost'=min(lost +1,lMax)); // do not serve and a request arrives
+	[tick2] sr=0 & sp=0 -> (q'=max(q-1,0)); // serve and nothing arrives
+
+	// serve and a request arrives arrives -- it actually performs two actions
+	[tick2] sr=1 & sp=0 -> true;
+
+endmodule
+
+
+
+// BATTERY
+module BAT
+
+	bat : [0..1] init 1; // 0 empty, 1 - operational
+	energy : [0..eMax] init 0;
+
+	[tick2] bat=0 -> (bat'=0); // loop when battery empty
+	[tick2] bat=1 & sp = 0 -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +3,eMax));
+	[tick2] bat=1 & sp = 5 -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +3,eMax));
+	[tick2] bat=1 & sp = 8 -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +3,eMax));
+
+	[tick2] bat=1 & sp = 1  -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +2,eMax));
+	[tick2] bat=1 & sp = 2  -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +2,eMax));
+
+	[tick2] bat=1 & sp = 3  -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +1,eMax));
+	[tick2] bat=1 & sp = 4  -> 0.01 : (bat'=0) + 0.99: (bat'=1) & (energy'=min(energy +1,eMax));
+
+	[tick2] bat=1 & (sp = 6 | sp=7 | sp=9 | sp=10) -> 0.01 : (bat'=0) + 0.99: (bat'=1);
+
+endmodule
+
+
+// power consumption
+rewards "power"
+
+// in contrasr to the PRISM model we assume that the transient states have the power consuption
+// equal to the source state
+
+	sp=0 & c=1 : 2.5; // 3
+	sp=1 & c=1 : 1.5; // 2
+	sp=2 & c=1 : 1.5; // 2
+	sp=3 & c=1 : 0.8; // 1
+	sp=4 & c=1 : 0.8; // 1
+	sp=5 & c=1 : 2.5; // 3
+	sp=6 & c=1 : 0.3; // 0
+	sp=7 & c=1 : 0.3; // 0
+	sp=8 & c=1 : 2.5; // 3
+	sp=9 & c=1 : 0.1;  //0
+	sp=10 & c=1 : 0.1; //0
+
+endrewards
+
+// queue size
+rewards "queue"
+
+	c=1 : q;
+
+endrewards
+
+// customers lost
+rewards "lostr"
+
+	[tick2] q=qMax & sr=1 & sp>0 : 1;
+
+endrewards
+
+// time
+rewards "time"
+
+    [tick2] true : 1;
+
+endrewards
+
+
