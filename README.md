@@ -1,6 +1,6 @@
 Dynasty
 =================================================
-[![Build Status](https://travis-ci.org/moves-rwth/sketching.svg?branch=master)](https://travis-ci.org/moves-rwth/sketching)
+[![Build Status](https://travis-ci.org/moves-rwth/dynasty.svg?branch=master)](https://travis-ci.org/moves-rwth/dynasty)
 
 This project contains prototypical implementations of synthesis in probabilistic program sketches.
 
@@ -102,7 +102,6 @@ python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --propertie
 ```bash
 python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --properties reward.properties --constants "CMAX=400,T_EXP=7.7,T_FAST=0.6,T_SLOW=0.995" --allowed 4x4grid_sl.allowed cschedenum
 ```
-
 
 #### All other approaches
 
