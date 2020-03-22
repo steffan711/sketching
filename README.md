@@ -40,7 +40,8 @@ python -m pytest dynasty_tests
 
 ### Docker container
 
-Coming soon.
+We automatically provide a [docker container](https://hub.docker.com/repository/docker/movesrwth/dynasty) with everything pre-installed.
+
 
 ## Usage examples
 
@@ -56,7 +57,8 @@ We support three methods:
  
 and have experimental code support for (rapid) one-by-one, all-in-one, and SMT-based synthesis. 
 
-As input, we take projects. Below, we first explain what a project is, and then discuss the different analysis types and how to invoke the different methods for these problems. For details about the methods, we refer to publications. 
+As input, we take projects. Below, we first explain what a project is, and then discuss the different analysis types and how to invoke the different methods for these problems. 
+For details about the methods, we refer to the publications mentioned above. 
 
 ### Input: Project folders
 
@@ -73,7 +75,7 @@ Optionally, a project may contain:
 
 Notice that a project may contain more files than necessary, e.g., to allow for slight variations without duplicating everything.
 
-For more information, look at the [examples](examples/)
+For more information, look at the [examples](examples/).
 
 ### Feasibility Analysis
 
@@ -108,6 +110,19 @@ python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --propertie
 TODO
 
 ### Optimal Feasibility Analysis
+Optimal feasibility analysis is enabled by adding an optimality criterion.
+An optimality criterion consists of a property, a direction, and a relative tolerance, written in a file:
+
+```
+P=? [ F (o=2 & c<=5) ]
+max
+relative 0.0
+```
+This describes that the probability described by the first line should be maximized among all feasible options.
+By increasing the relative tolerance, we relax this hard constraint and only require that the 
+obtained instantiation is at least (1-tolerance)* "global maximum."
+
+By passing such a criterion, the tool automatically switches to optimal feasibility.
 
 #### CEGIS
 
@@ -116,9 +131,9 @@ TODO description
 python dynasty.py --project examples/grid/ --sketch 4x4grid_sl.templ --constants CMAX=11,T_EXP=10.0,T_SLOW=10.0,T_FAST=0.7 --allowed 4x4grid_sl.allowed --restrictions 4x4grid_sl.restrictions  --optimality fast_to_target.optimal --properties none.properties cegis
 ```
 
-#### Lifting
+#### Other approaches
 
-TODO
+Support is not yet implemented.
 
 
 ### Partitioning 
