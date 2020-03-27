@@ -62,29 +62,18 @@ class JaniQuotientBuilder:
 
 
     def construct(self, holes_options, remember={}, init_all_in_one={}):
+        assert len(remember) == 0, "Remember options have not been tested in a long time"
         self._counter = self._counter + 1
         make_initialiser_automaton = False
         init_all_in_one_by_replacement = True
         logger.info("Construct Jani Model with {} options and {} as remember".format(holes_options, remember))
-        edge_coloring = EdgeColoring(holes_options)#{k: v for k,v in self._open_constants.items() if k not in init_all_in_one })
+        edge_coloring = EdgeColoring(holes_options)
         jani_program = stormpy.JaniModel(self.original_model)
 
         holes_memory_vars = {c.name: self._make_memory_var(c, self.holes_memory_ep[c.name], len(holes_options[c.name])) for c
                              in self._open_constants.values()}
 
         new_automata = dict()
-
-
-
-        if make_initialiser_automaton:
-            if not self.original_model.has_standard_composition():
-                raise RuntimeError("Models without standard composition are not yet supported.")
-
-            init_automaton = stormpy.storage.JaniAutomaton("_initialiser", self.expression_manager.create_integer_variable("_initialiser_loc"))
-            assert False
-            # TODO create location
-            # TODO create edges
-
 
         for aut_index, automaton in enumerate(jani_program.automata):
             if len([x for x in self._automata_to_open_constants[automaton.name] if x not in init_all_in_one])  == 0:
@@ -175,11 +164,7 @@ class JaniQuotientBuilder:
                                                             dests)
 
                         new_edge.color = edge_coloring.get_or_make_color(combination)
-
-
                         new_aut.add_edge(new_edge)
-
-
                 else:
                     assert len(expand_guard) == 0
                     guard_expr = stormpy.Expression(edge.template_edge.guard)
@@ -218,9 +203,6 @@ class JaniQuotientBuilder:
         for idx, aut in new_automata.items():
             jani_program.replace_automaton(idx, aut)
 
-        if make_initialiser_automaton:
-            jani_program.add_automaton(init_automaton)
-            jani_program.set_standard_system_composition()
 
         logger.debug("Number of colors: {}".format(len(edge_coloring)))
 
@@ -240,20 +222,17 @@ class JaniQuotientBuilder:
             for v in vs:
                 var_restriction = stormpy.Expression.Or(var_restriction, stormpy.Expression.Eq(expr_var.get_expression(), v))
             jani_program.initial_states_restriction = stormpy.Expression.And(jani_program.initial_states_restriction, var_restriction)
-            if make_initialiser_automaton:
-                init_val = self.expression_manager.create_integer(min_val-1)
-                lower_bound = init_val
-                new_variables.append(stormpy.storage.JaniBoundedIntegerVariable(c, expr_var, init_val, lower_bound, upper_bound))
-            else:
-                lower_bound = self.expression_manager.create_integer(min_val)
-                new_variables.append(stormpy.storage.JaniBoundedIntegerVariable(c, expr_var, lower_bound, upper_bound))
+            # TODO if using an initialiser automaton, change the way variables are initialises
+            lower_bound = self.expression_manager.create_integer(min_val)
+            new_variables.append(stormpy.storage.JaniBoundedIntegerVariable(c, expr_var, lower_bound, upper_bound))
         for cname in remove_constant_names:
             jani_program.remove_constant(cname)
 
         for n in new_variables:
             jani_program.global_variables.add_bounded_integer_variable(n)
 
-        if make_initialiser_automaton or len(init_all_in_one) != len(holes_options):
+        if len(init_all_in_one) != len(holes_options):
+            # also do this with initializer automata
             jani_program.set_model_type(stormpy.JaniModelType.MDP)
         jani_program.finalize()
         jani_program.check_valid()
