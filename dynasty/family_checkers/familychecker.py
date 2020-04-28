@@ -345,6 +345,7 @@ class FamilyChecker:
                     entries = line.strip().split(";")
                     for e in entries:
                         symmetries.append(e.strip().split(","))
+                    continue
                 if mode == "different":
                     entries = line.strip().split(";")
                     for e in entries:

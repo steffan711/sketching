@@ -44,7 +44,6 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
     pickle.dump((keyword,constants, description,*args), open(path, "wb"))
     logger.info("Stored stats at {}".format(path))
 
-
 @click.command()
 @click.option('--project', help="root", required=True)
 @click.option('--sketch', help="the sketch", required=True)
@@ -52,13 +51,14 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option('--properties', help="the properties", required=True)
 @click.option('--optimality', help="optimality criterion")
 @click.option('--restrictions', help="restrictions")
+@click.option('--optimize-one', help="number of a property that will be optimized exclusively", type=click.IntRange(1))
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
 @click.option("--print-stats", is_flag=True)
 @click.option('--check-prerequisites', help="should prerequisites be checked", is_flag=True)
 @click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
 @click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis', 'smartsearch']))
-def dynasty(project, sketch, allowed, properties, optimality, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
+def dynasty(project, sketch, allowed, properties, optimality, optimize_one, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
     print("This is Dynasty version {}.".format(version()))
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
@@ -82,7 +82,7 @@ def dynasty(project, sketch, allowed, properties, optimality, restrictions, cons
         algorithm = Synthesiser(threads=1, check_prerequisites=check_prerequisites,
                               add_cuts=backward_cuts)
     elif approach == FamilyCheckMethod.SmartSearch:
-        algorithm = SmartSearcher()
+        algorithm = SmartSearcher(optimize_one)
     else:
         assert None
 

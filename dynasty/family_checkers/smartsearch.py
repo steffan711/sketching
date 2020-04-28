@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SmartSearcher(FamilyChecker):
 
-    def __init__(self):
+    def __init__(self, optimize_one):
         super().__init__()
         self.template_metavariables = OrderedDict()
         self._smtlock = threading.Lock()
@@ -34,6 +34,7 @@ class SmartSearcher(FamilyChecker):
         self.current_best_indiv = []
         self.offspring_database = set()
         self.max_size_offspring_database = 1000
+        self.optimized_property = optimize_one
 
     def initialize_counters(self):
         self.offspring_database = set()
@@ -68,13 +69,13 @@ class SmartSearcher(FamilyChecker):
                     logger.debug("{} != {}".format(x, y))
                     self.solver.add(variables[x] != variables[y])
 
-    def load_sketch(self, path, property_path, constant_str=""):
+    def load_sketch(self, path, property_path, optimality_path=None, constant_str=""):
         logger.info("Do the parsing first!!!")
         #sketch_path = os.path.splitext(path)[0] + '.sketch'
         # This will replace the content of path if the file exists
         #self._unwind_sketch_macros(path, sketch_path)
 
-        return super(SmartSearcher, self).load_sketch(path, property_path, constant_str)
+        return super(SmartSearcher, self).load_sketch(path, property_path, optimality_path, constant_str)
 
     def _unwind_sketch_macros(self, path, sketch_path):
         with open(sketch_path, 'r') as file:
@@ -337,27 +338,32 @@ class SmartSearcher(FamilyChecker):
             else:
                 assert False
 
+            if self.optimized_property:
+                is_optimized = int((sum + 1) == self.optimized_property)
+            else:
+                is_optimized = 1.
+
             if p_qual.property.raw_formula.comparison_type == ComparisonType.GEQ:
                 if mc_result >= threshold:
-                    fitness_val += mc_result - threshold
+                    fitness_val += (mc_result - threshold) * is_optimized
                 else:
                     fitness_val += (mc_result - threshold) * self.penalization_const
                     penalisation -= 1.
             elif p_qual.property.raw_formula.comparison_type == ComparisonType.GREATER:
                 if mc_result > threshold:
-                    fitness_val += mc_result - threshold
+                    fitness_val += (mc_result - threshold) * is_optimized
                 else:
                     fitness_val += (mc_result - threshold) * self.penalization_const
                     penalisation -= 1.
             elif p_qual.property.raw_formula.comparison_type == ComparisonType.LEQ:
                 if mc_result <= threshold:
-                    fitness_val += (threshold - mc_result) * fitness_norm_const
+                    fitness_val += (threshold - mc_result) * fitness_norm_const * is_optimized
                 else:
                     fitness_val += (threshold - mc_result) * self.penalization_const * fitness_norm_const
                     penalisation -= 1.
             elif p_qual.property.raw_formula.comparison_type == ComparisonType.LESS:
                 if mc_result < threshold:
-                    fitness_val += (threshold - mc_result) * fitness_norm_const
+                    fitness_val += (threshold - mc_result) * fitness_norm_const * is_optimized
                 else:
                     fitness_val += (threshold - mc_result) * self.penalization_const * fitness_norm_const
                     penalisation -= 1.
@@ -380,16 +386,17 @@ class SmartSearcher(FamilyChecker):
     def writeIndivDataRand(self, file, indiv, fitness):
         file.write("#%s\n%f\t%f\n" % (indiv, self.num_of_generated_Rand, fitness))
 
-    def run(self):
+    def run_feasibility(self):
         self.num_of_holes = len(self.hole_options)
 
         for v in self.hole_options.values():
             self.num_of_options_for_holes.append(len(v))
 
-        self.run_GA_mutation_only("my_name1")
+        return self.run_GA_mutation_only("my_name1")
 
     def run_GA_mutation_only(self, projname):
         random.seed()
+        self.time_clock_start_sec = time.time()
         individual = self._init_individual_MO()
         #individual = [3, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 0, 1, 1, 1, 0]
         self.current_best_indiv = individual.copy()
@@ -399,7 +406,6 @@ class SmartSearcher(FamilyChecker):
         hole_assignments = self._individual_to_constants_assignment(individual)
         logger.info("Consider hole assignment: {}".format(
             ",".join("{}={}".format(k, v) for k, v in hole_assignments.items())))
-        self.time_clock_start_sec = time.time()
         dir_name = "./Graphs and data/" + projname
         name_counter = 0
         while True:
@@ -460,7 +466,7 @@ class SmartSearcher(FamilyChecker):
         logger.debug("Num of generated individuals: {}".format(self.gener_indiv_counter))
         logger.debug("Best individual info:")
         self._indiv_info(individual)
-        return fitness, dir_name
+        return fitness >= 0., self._individual_to_constants_assignment(individual), None
 
     def _generate_indiv_Rand(self, state_space_size):
         random.seed()
