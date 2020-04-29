@@ -5,34 +5,27 @@ dtmc
 
 const int qMax = 10;
 
-const double T_PW = 1000;
-const double T_LH = 0.05;
-const double T_LL = 0.1;
+const double T_PW;
+const double T_LH;
+const double T_LL;
 
-const c_pm_0_0;
-const c_pm_0_1;
-const c_pm_0_2;
-const c_pm_0_3;
-const c_pm_1_0;
-const c_pm_1_1;
-const c_pm_1_2;
-const c_pm_1_3;
-const c_pm_2_0;
-const c_pm_2_1;
-const c_pm_2_2;
-const c_pm_2_3;
-const c_pm_3_0;
-const c_pm_3_1;
-const c_pm_3_2;
-const c_pm_3_3;
+const int CMAX;
+
+const int X11;// = 3;
+const int X21; // = 1; // or 2
+const int X31; // = 2;
+const int X12; // = 3;
+const int X22; // = 1; // or 2
+const int X32; // = 2;
+const int X13; // = 3;
+const int X23; // = 1; // or 2
+const int X33; // = 2;
 
 
-const int LT1 = 3;
-const int LT2 = 5;
-const int LT3 = 7;
-const int HT1 = 3;
-const int HT2 = 5;
-const int HT3 = 7;
+const int LT1 = 3; //3;
+const int LT2 = 7; //6;
+const int HT1 = 3; //3;
+const int HT2 = 7; //6;
 
 // This system can achieve
 
@@ -63,45 +56,23 @@ module PM
 	// 3 - go to sleep
 
 
-		[tick1] qL *10 <= LT1*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_0_0);
+	[tick1] qL*10 <= LT1*qMax & q*10 <= HT1*qMax   -> (pm'=X11);
 
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_0_1);
+	[tick1] qL*10 > LT1*qMax & qL*10 <= LT2*qMax &  q*10 <= HT1*qMax -> (pm'=X21);
 
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_0_2);
+    [tick1] qL*10 > LT2*qMax &  q*10 <= HT1*qMax -> (pm'=X31);
 
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT3*qMax -> (pm' = c_pm_0_3);
+    [tick1] qL*10 <= LT1*qMax & q*10 > HT1*qMax & q*10 <= HT2*qMax -> (pm'=X12);
 
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_1_0);
+    [tick1] qL*10 > LT1*qMax & qL*10 <= LT2*qMax & q*10 > HT1*qMax & q*10 <= HT2*qMax -> (pm'=X22);
 
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_1_1);
+    [tick1] qL*10 > LT2*qMax &  q*10 > HT1*qMax & q*10 <= HT2*qMax -> (pm'=X32);
 
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_1_2);
+    [tick1] qL*10 <= LT1*qMax & q*10 > HT2*qMax   -> (pm'=X13);
 
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT3*qMax -> (pm' = c_pm_1_3);
+	[tick1] qL*10 > LT1*qMax & qL*10 <= LT2*qMax &  q*10 > HT2*qMax -> (pm'=X23);
 
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_2_0);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_2_1);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_2_2);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT3*qMax -> (pm' = c_pm_2_3);
-
-	[tick1] qL *10 > LT3*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_3_0);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_3_1);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_3_2);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT3*qMax -> (pm' = c_pm_3_3);
-
-
-	
-	
-// unused sketch	(tick1, {qL, [0,10], 2},
-//	{q, [0,10], 6}:
-//	{pm, {0, 1, 2, 3}})
-	
+    [tick1] qL*10 > LT2*qMax &  q*10 > HT2*qMax -> (pm'=X33);
 
 endmodule
 
@@ -200,7 +171,10 @@ module SRQ
 endmodule
 
 
-
+module stateext
+    counter : [0..CMAX] init 0;
+    [tick1] true -> (counter'=min(CMAX,counter+1));
+endmodule
 
 
 // BATTERY
@@ -210,9 +184,11 @@ module BAT
 
 	[] bat=0 -> (bat'=0); // loop when battery empty
 
-	[tick2] bat=1 -> 0.0001 : (bat'=0) + 0.9999 : (bat'=1);
+	[tick2] bat=1 -> 0.01 : (bat'=0) + 0.99 : (bat'=1);
 
 endmodule
+
+
 
 
 // queue size
@@ -241,8 +217,25 @@ rewards "lostL"
 
 endrewards
 
+// power consumption
+//rewards "power"
 
+// in contrasr to the PRISM model we assume that the transient states have the power consuption
+// equal to the source state
 
+//	sp=1 & c=0 : 2.5;
+//	sp=0 & c=0 : 2.5;
+//	sp=4 & c=0 : 2.5;
+
+//	sp=2 & c=0 : 1.5;
+//	sp=5 & c=0 : 1.5;
+
+//	sp=3 & c=0 : 0.1;
+//	sp=6 & c=0 : 0.1;
+//	sp=7 & c=0 : 0.1;
+//	sp=8 & c=0 : 0.1;
+
+//endrewards
 
 // power consumption
 rewards "power"
@@ -250,18 +243,35 @@ rewards "power"
 // in contrasr to the PRISM model we assume that the transient states have the power consuption
 // equal to the source state
 
-	sp=1 & c=1 : 2.5;
-	sp=0 & c=1 : 2.5;
-	sp=4 & c=1 : 2.5;
+	[tick2] sp=1 : 2.5;
+	[tick2] sp=0 : 2.5;
+	[tick2] sp=4 : 2.5;
 
-	sp=2 & c=1 : 1.5;
-	sp=5 & c=1 : 1.5;
+	[tick2] sp=2 : 1.5;
+	[tick2] sp=5 : 1.5;
 
-	sp=3 & c=1 : 0.1;
-	sp=6 & c=1 : 0.1;
-	sp=7 & c=1 : 0.1;
-	sp=8 & c=1 : 0.1;
+	[tick2] sp=3 : 0.1;
+	[tick2] sp=6 : 0.1;
+	[tick2] sp=7 : 0.1;
+	[tick2] sp=8 : 0.1;
 
+endrewards
+
+rewards "combined"
+    [tick2] sp=1 : 2.5;
+	[tick2] sp=0 : 2.5;
+	[tick2] sp=4 : 2.5;
+
+	[tick2] sp=2 : 1.5;
+	[tick2] sp=5 : 1.5;
+
+	[tick2] sp=3 : 0.1;
+	[tick2] sp=6 : 0.1;
+	[tick2] sp=7 : 0.1;
+	[tick2] sp=8 : 0.1;
+	[tick2] qL=qMax & sr=2 & sp!=1 : 40;
+
+	[tick2] q=qMax & sr=1 & sp!=0 : 100;
 endrewards
 
 // time

@@ -9,23 +9,7 @@ const double T_PW = 1000;
 const double T_LH = 0.05;
 const double T_LL = 0.1;
 
-const c_pm_0_0;
-const c_pm_0_1;
-const c_pm_0_2;
-const c_pm_0_3;
-const c_pm_1_0;
-const c_pm_1_1;
-const c_pm_1_2;
-const c_pm_1_3;
-const c_pm_2_0;
-const c_pm_2_1;
-const c_pm_2_2;
-const c_pm_2_3;
-const c_pm_3_0;
-const c_pm_3_1;
-const c_pm_3_2;
-const c_pm_3_3;
-
+#genCONST
 
 const int LT1 = 3;
 const int LT2 = 5;
@@ -63,43 +47,14 @@ module PM
 	// 3 - go to sleep
 
 
-		[tick1] qL *10 <= LT1*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_0_0);
-
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_0_1);
-
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_0_2);
-
-	[tick1] qL *10 <= LT1*qMax & q *10 > HT3*qMax -> (pm' = c_pm_0_3);
-
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_1_0);
-
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_1_1);
-
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_1_2);
-
-	[tick1] qL *10 > LT1*qMax & qL *10 <= LT2*qMax & q *10 > HT3*qMax -> (pm' = c_pm_1_3);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_2_0);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_2_1);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_2_2);
-
-	[tick1] qL *10 > LT2*qMax & qL *10 <= LT3*qMax & q *10 > HT3*qMax -> (pm' = c_pm_2_3);
-
-	[tick1] qL *10 > LT3*qMax & q *10 <= HT1*qMax -> (pm' = c_pm_3_0);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT1*qMax & q *10 <= HT2*qMax -> (pm' = c_pm_3_1);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT2*qMax & q *10 <= HT3*qMax -> (pm' = c_pm_3_2);
-
-	[tick1] qL *10 > LT3*qMax & q *10 > HT3*qMax -> (pm' = c_pm_3_3);
-
-
+	#genQIDBeg(tick1, {qL, [0,10], 3},
+	{q, [0,10], 3}:
+	{pm, {0, 1, 2, 3}})
+	#genQIDEnd
 	
 	
-// unused sketch	(tick1, {qL, [0,10], 2},
-//	{q, [0,10], 6}:
+// unused sketch	(tick1, {qL, [0,10], 3},
+//	{q, [0,10], 3}:
 //	{pm, {0, 1, 2, 3}})
 	
 
