@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class SmartSearcher(FamilyChecker):
 
-    def __init__(self, optimize_one):
+    def __init__(self, optimize_one, timeout):
         super().__init__()
         self.template_metavariables = OrderedDict()
         self._smtlock = threading.Lock()
@@ -27,7 +27,7 @@ class SmartSearcher(FamilyChecker):
         self.penalization_const = 20.0
         self.num_of_generated_MO = 0  # MO - mutation only solution
         self.num_of_generated_Rand = 0  # count of randomly generated individuals
-        self.time_limit_sec = 30
+        self.time_limit_sec = timeout
         self.time_clock_start_sec = None
         self.mutation_probability = 0.05
         self.gener_indiv_counter = 0
@@ -71,9 +71,9 @@ class SmartSearcher(FamilyChecker):
 
     def load_sketch(self, path, property_path, optimality_path=None, constant_str=""):
         logger.info("Do the parsing first!!!")
-        #sketch_path = os.path.splitext(path)[0] + '.sketch'
+        # sketch_path = os.path.splitext(path)[0] + '.sketch'
         # This will replace the content of path if the file exists
-        #self._unwind_sketch_macros(path, sketch_path)
+        # self._unwind_sketch_macros(path, sketch_path)
 
         return super(SmartSearcher, self).load_sketch(path, property_path, optimality_path, constant_str)
 
@@ -320,6 +320,8 @@ class SmartSearcher(FamilyChecker):
         fitness_val = 0.
         penalisation = 0.
         sum = 0
+        optimized_val = None
+
         for p_qual, p_quan in zip(self.properties, self.quantitative_properties):
             # Check the property
             mc_result = stormpy.model_checking(model, p_quan).at(model.initial_states[0])
@@ -340,6 +342,8 @@ class SmartSearcher(FamilyChecker):
 
             if self.optimized_property:
                 is_optimized = int((sum + 1) == self.optimized_property)
+                if is_optimized:
+                    optimized_val = mc_result
             else:
                 is_optimized = 1.
 
@@ -375,7 +379,7 @@ class SmartSearcher(FamilyChecker):
         assert sum > 0
         fitness_val /= sum
         fitness_val += penalisation
-        return fitness_val
+        return (fitness_val, optimized_val)
 
     def writeIndivDataByTime(self, file, indiv, fitness):
         file.write("#%s\n%f\t%f\n" % (indiv, time.time() - self.time_clock_start_sec, fitness))
@@ -401,8 +405,10 @@ class SmartSearcher(FamilyChecker):
         #individual = [3, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 0, 1, 1, 1, 0]
         self.current_best_indiv = individual.copy()
         # individual = [4, 6, 1, 7, 6, 3, 6, 7, 3, 5]
-        fitness = self._fitness_MO(individual)
+        fitness, optimized_val = self._fitness_MO(individual)
         logger.debug("Initial individual : {} with fitness : {}".format(individual, fitness))
+        if optimized_val is not None:
+            logger.debug("Initial value of the optimized property : {}".format(optimized_val))
         hole_assignments = self._individual_to_constants_assignment(individual)
         logger.info("Consider hole assignment: {}".format(
             ",".join("{}={}".format(k, v) for k, v in hole_assignments.items())))
@@ -427,10 +433,12 @@ class SmartSearcher(FamilyChecker):
         updateCountOnlyBetter = 0
         state_space_size = functools.reduce(lambda x, y: x * y, self.num_of_options_for_holes, 1)
         while not (self._time_is_over()):
+            if optimized_val is None and fitness >= 0.:
+                break
             offspring = []
             if self._generate_offspring_MO(individual, 10, offspring, state_space_size):
                 for new_indiv in offspring:
-                    new_fitness = self._fitness_MO(new_indiv)
+                    new_fitness, new_optimized_val = self._fitness_MO(new_indiv)
                     updateCount += 1
                     self.writeIndivDataMO(f, new_indiv, new_fitness)
                     if new_fitness >= fitness:
@@ -441,6 +449,9 @@ class SmartSearcher(FamilyChecker):
                         individual = new_indiv
                         # self.writeIndivDataMO(f, individual, fitness)
                         logger.debug("New individual : {} with fitness : {}".format(individual, fitness))
+                        if optimized_val is not None:
+                            optimized_val = new_optimized_val
+                            logger.debug("New value of the optimized property : {}".format(optimized_val))
                         hole_assignments = self._individual_to_constants_assignment(individual)
                         logger.info("Consider hole assignment: {}".format(
                             ",".join("{}={}".format(k, v) for k, v in hole_assignments.items())))
@@ -464,9 +475,11 @@ class SmartSearcher(FamilyChecker):
         logger.debug("Number of fitness updates: {}".format(updateCount))
         logger.debug("Number of fitness improvements: {}".format(updateCountOnlyBetter))
         logger.debug("Num of generated individuals: {}".format(self.gener_indiv_counter))
+        if optimized_val is not None:
+            logger.debug("Best found value of the optimized property : {}".format(optimized_val))
         logger.debug("Best individual info:")
         self._indiv_info(individual)
-        return fitness >= 0., self._individual_to_constants_assignment(individual), None
+        return fitness >= 0., self._individual_to_constants_assignment(individual), optimized_val
 
     def _generate_indiv_Rand(self, state_space_size):
         random.seed()

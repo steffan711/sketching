@@ -4,6 +4,7 @@ import pickle
 import click
 import os
 import time
+import click_config_file
 
 from dynasty.family_checkers.familychecker import FamilyCheckMethod
 from dynasty.family_checkers.quotientbased import LiftingChecker, AllInOneChecker,OneByOneChecker,ConsistentSchedChecker,SmtChecker
@@ -13,7 +14,7 @@ from dynasty import version
 
 logger = logging.getLogger(__name__)
 
-def setup_logger(log_path):
+def setup_logger(log_path, loglevel):
     """
     Setup routine for logging. 
 
@@ -21,19 +22,19 @@ def setup_logger(log_path):
     :return: 
     """
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(loglevel)
 
     formatter = logging.Formatter('%(asctime)s %(threadName)s - %(name)s - %(levelname)s - %(message)s')
 
     handlers = []
     if log_path:
         fh = logging.FileHandler(log_path)
-        fh.setLevel(logging.DEBUG)
+        fh.setLevel(loglevel)
         fh.setFormatter(formatter)
         handlers.append(fh)
     ch = logging.StreamHandler(sys.stdout)
     handlers.append(ch)
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(loglevel)
     ch.setFormatter(formatter)
     for h in handlers:
         root.addHandler(h)
@@ -52,14 +53,18 @@ def dump_stats_to_file(path, keyword, constants, description, *args):
 @click.option('--optimality', help="optimality criterion")
 @click.option('--restrictions', help="restrictions")
 @click.option('--optimize-one', help="number of a property that will be optimized exclusively", type=click.IntRange(1))
+@click.option('--timeout', help="time limit for evolutionary search in seconds", default=30)
 @click.option("--constants", default="")
 @click.option("--stats", default="stats.out")
 @click.option("--print-stats", is_flag=True)
 @click.option('--check-prerequisites', help="should prerequisites be checked", is_flag=True)
 @click.option('--partitioning', help="Run partitioning instead of feasibility", is_flag=True)
-@click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis', 'smartsearch']))
-def dynasty(project, sketch, allowed, properties, optimality, optimize_one, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, method):
+@click.option('-v', '--verbose', count=True)
+@click_config_file.configuration_option()
+@click.argument("method",  type=click.Choice(['lift', 'cschedenum', 'allinone', 'onebyone', 'smt', 'cegis', 'ea']))
+def dynasty(project, sketch, allowed, properties, optimality, optimize_one, timeout, restrictions, constants, stats, print_stats, check_prerequisites, partitioning, verbose, method):
     print("This is Dynasty version {}.".format(version()))
+    log(verbose)
     approach = FamilyCheckMethod.from_string(method)
     assert approach is not None
     backward_cuts = 1 # Only used for cegis.
@@ -81,8 +86,8 @@ def dynasty(project, sketch, allowed, properties, optimality, optimize_one, rest
     elif approach == FamilyCheckMethod.CEGIS:
         algorithm = Synthesiser(threads=1, check_prerequisites=check_prerequisites,
                               add_cuts=backward_cuts)
-    elif approach == FamilyCheckMethod.SmartSearch:
-        algorithm = SmartSearcher(optimize_one)
+    elif approach == FamilyCheckMethod.EA:
+        algorithm = SmartSearcher(optimize_one, timeout)
     else:
         assert None
 
@@ -142,8 +147,14 @@ def dynasty(project, sketch, allowed, properties, optimality, optimize_one, rest
                              backward_cuts, "sat" if result is not None else "unsat"]])
     dump_stats_to_file(stats, algorithm.stats_keyword, constants, description, algorithm.store_in_statistics())
 
+def log(verbosity):
+    click.echo('Verbosity: %s' % verbosity)
+    base_loglevel = 30
+    verbosity = min(verbosity, 2)
+    loglevel = base_loglevel - (verbosity * 10)
+    setup_logger("dynasty.log", loglevel)
+
 def main():
-    setup_logger("dynasty.log")
     dynasty()
 
 if __name__ == "__main__":

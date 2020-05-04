@@ -27,7 +27,7 @@ class FamilyCheckMethod(Enum):
     AllInOne = 3,
     SMT = 4,
     CEGIS = 5,
-    SmartSearch = 6,
+    EA = 6,
 
     @classmethod
     def from_string(cls, input):
@@ -49,8 +49,8 @@ class FamilyCheckMethod(Enum):
             return cls.SMT
         elif input == "cegis":
             return cls.CEGIS
-        elif input == "smartsearch":
-            return cls.SmartSearch
+        elif input == "ea":
+            return cls.EA
         else:
             return None
 
